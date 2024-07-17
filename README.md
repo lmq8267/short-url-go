@@ -10,6 +10,7 @@
 </p>
 
 ### 预览
+[tt.cnqq.cloudns.ch](https://tt.cnqq.cloudns.ch/)
 ![](./image/UI预览.png)
 
 ### 参数
@@ -38,4 +39,4 @@
 ![](./image/建立转发规则.png)
 ![](./image/设置你的域名.png)
 这样就可以直接使用你的域名访问了
-
+[tt.cnqq.cloudns.ch](https://tt.cnqq.cloudns.ch/)
