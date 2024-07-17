@@ -9,6 +9,9 @@
 <a href="https://github.com/lmq8267/short-url-go/actions?query=workflow%3ABuild"><img src="https://img.shields.io/github/actions/workflow/status/lmq8267/short-url-go/build.yml?branch=main" alt="Build status"/></a
 </p>
 
+### 预览
+![](./image/UI预览.png)
+
 ### 参数
 ```bash
 -p [端口号] 监听指定端口号,默认8080
@@ -26,5 +29,12 @@
 数据保存在`./short_data/`目录里,以后缀名.json保存，重置后缀密码，直接清除里面的`"password": "",`即可
 更换背景图在`./short_data/short_data.json`里面的`"img": "你的图片.jpg"`
 
-### 预览
-![](./UI预览.png)
+使用cf的转发规则，可以去掉端口，
+例如在serv00免费服务器部署，
+在serv00运行后，去cf添加服务器的IP记录
+![](./image/CF解析A记录.png)
+然后再去添加转发规则
+![](./image/建立转发规则.png)
+![](./image/设置你的域名.png)
+这样就可以直接使用你的域名访问了
+
