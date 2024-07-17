@@ -1,55 +1,41 @@
 <!DOCTYPE html>
-            <html lang='zh-CN'>
-            <head>
-                <meta charset='UTF-8'>
-                <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-                <style>
-                    body, html {
-                        margin: 1;
-                        padding: 2%;
-                        height: 100%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        overflow: hidden;
-                    }
-                    #container {
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        height: 100%;
-                        width: 100%;
-                        overflow: hidden;
-                    }
-                    #content {
-                        font-size: 5vw;
-                        font-weight: 900;
-                        text-align: center;
-                        overflow: auto;
-                        max-height: 100%;
-                        max-width: 100%;
-                        word-break: break-word;
-                    }
-                </style>
-                <script>
-                    function adjustFontSize() {
-                        var content = document.getElementById('content');
-                        var container = document.getElementById('container');
-                        var fontSize = 5;
-                        content.style.fontSize = fontSize + 'vw';
-                        while ((content.scrollHeight > container.clientHeight || content.scrollWidth > container.clientWidth) && fontSize > 1) {
-                            fontSize -= 0.5;
-                            content.style.fontSize = fontSize + 'vw';
-                        }
-                    }
-
-                    window.onload = adjustFontSize;
-                    window.onresize = adjustFontSize;
-                </script>
-            </head>
-            <body>
-                <div id='container'>
-                    <div id='content'>{长内容}</div>
-                </div>
-            </body>
-            </html>
+<html lang='zh-CN'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f8ff; /* 淡蓝色背景 */
+        }
+        #container {
+            
+            width: 88%; /* 宽度占据80% */
+            height: 88%; /* 高度占据80% */
+            overflow: auto; /* 支持滚动 */
+            padding: 5px; /* 内边距 */
+            box-sizing: border-box; /* 边框包含在宽度和高度内 */
+        }
+        #content {
+            font-size: 30px; /* 固定大小的字体，可以根据需要调整像素大小 */
+            font-weight: 900;
+            text-align: center;
+            color: black; /* 黑色字体 */
+            word-break: break-word;
+            white-space: pre-wrap; /* 保留原文换行 */
+        }
+    </style>
+</head>
+<body>
+    <div id='container'>
+        <div id='content'>
+            {长内容}
+        </div>
+    </div>
+</body>
+</html>
