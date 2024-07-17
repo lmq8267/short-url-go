@@ -1,0 +1,115 @@
+name: 编译shortener
+
+on:
+  workflow_dispatch:
+    inputs:
+      upx:
+        description: '编译完成后是否使用upx压缩体积'
+        required: true
+        default: false
+        type: boolean
+      rel:
+        description: '编译完成后是否发布releases'
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+ shortener:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - GOARCH: arm64
+            GOOS: linux
+          - GOARCH: arm
+            GOARM: 7
+            GOOS: linux
+          - GOARCH: arm
+            GOARM: 6
+            GOOS: linux
+          - GOARCH: arm
+            GOARM: 5
+            GOOS: linux
+          - GOARCH: arm
+            GOOS: linux
+          - GOARCH: mipsle
+            GOMIPS: softfloat
+            GOOS: linux
+          - GOARCH: mips
+            GOMIPS: softfloat
+            GOOS: linux
+          - GOARCH: mips64
+            GOOS: linux
+          - GOARCH: mips64le
+            GOOS: linux
+          - GOARCH: ppc64le
+            GOOS: linux
+          - GOARCH: s390x
+            GOOS: linux
+          - GOARCH: amd64
+            GOOS: linux
+          - GOARCH: amd64
+            GOOS: freebsd
+    runs-on: ubuntu-latest
+    env:
+      GOarch: ${{ matrix.GOARCH }}
+      GOos: ${{ matrix.GOOS }}
+      GOarm: ${{ matrix.GOARM }}
+      GOmips: ${{ matrix.GOMIPS }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          repository: lmq8267/short-url-go
+      - name: 获取最新Go
+        run: |
+          latest_version=$(curl -L -k -s https://golang.org/dl/?mode=json | grep -m 1 -o '"version": "[^"]*' | sed 's/"version": "//' | tr -d 'go" ')
+          echo "go版本=$latest_version"
+          echo "gotag=$latest_version" >> $GITHUB_ENV
+      - name: 安装go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.gotag }}
+      - name: 开始编译
+        run: |
+            sudo timedatectl set-timezone "Asia/Shanghai"
+            export CGO_ENABLED=0
+            export GOOS=$GOos
+            export GOARCH=$GOarch
+            export GOARM=$GOarm
+            export GOMIPS=$GOmips
+            go build -ldflags="-s -w"
+            echo "shortener ：`ls -alh shortener | awk '{print $5}'`"
+            file shortener
+            mv shortener shortener-${GOarch}${GOarm}${GOmips}
+            echo "build_time=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+            echo "build_tag=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
+      - name: 安装 UPX
+        if: github.event.inputs.upx == 'true'
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          version: latest
+          install-only: true
+      - name: UPX压缩
+        if: github.event.inputs.upx == 'true' 
+        run: |
+          if [ "${GOos}" != "freebsd" ] && [ "${GOarch}" != "mips64" ] && [ "${GOarch}" != "mips64le" ] && [ "${GOarch}" != "ppc64le" ] && [ "${GOarch}" != "s390x" ]; then
+             upx --lzma --best shortener-${GOarch}${GOarm}${GOmips}
+          fi
+      - name: 发布 
+        if: github.event.inputs.rel == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.c8 }}
+          body: |
+           > ### 编译时间： ${{ env.build_time }}
+           
+          tag_name: ${{ env.build_tag }}
+          name: Version:${{ env.build_tag }}
+          files: ./shortener-${GOarch}${GOarm}${GOmips}
+      - name: 上传
+        uses: actions/upload-artifact@v4
+        with:
+          name: shortener-${GOarch}${GOarm}${GOmips}
+          path: ./shortener-${GOarch}${GOarm}${GOmips}
