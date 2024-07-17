@@ -40,3 +40,21 @@
 ![](./image/设置你的域名.png)
 这样就可以直接使用你的域名访问了
 [tt.cnqq.cloudns.ch](https://tt.cnqq.cloudns.ch/)
+
+### API
+```badh
+curl -k 'http://你的域名地址/api' -X POST  -d '{
+  "longUrl": "长链接",
+  "shortCode": "后缀",
+  "type": "link",
+  "expiration": "",
+  "burn_after_reading": false,
+  "password": ""
+}'
+```
+其中 `longUrl` 表示 长链接或者文本内容<br>
+`shortCode` 表示 后缀<br>
+`type` 表示功能 `link`是链接 `text`是文本 `html`是网页<br>
+`expiration` 表示有效期（分钟） 整数<br>
+`burn_after_reading` 表示是否启用阅后即焚 `false`关闭 `true`开启<br>
+`password` 表示后缀密码，下次更新这个后缀的内容需要使用相同的密码才能更新<br>
