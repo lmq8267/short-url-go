@@ -24,15 +24,14 @@
 ```bash
 ./shortener
 ```
-浏览器输入`http://本地ip:8080`打开主页
-
+浏览器输入`http://本地ip:8080`打开主页<br>
 [s4.serv00.com:8828](http://s4.serv00.com:8828)
 
 数据保存在`./short_data/`目录里,以后缀名.json保存，重置后缀密码，直接清除里面的`"password": "",`即可<br>
 更换背景图在`./short_data/short_data.json`里面的`"img": "你的图片.jpg"`
 
-使用cf的转发规则，可以去掉端口，
-例如在serv00免费服务器部署，
+使用cf的转发规则，可以去掉端口<br>
+例如在serv00免费服务器部署<br>
 在serv00运行后，去cf添加服务器的IP记录
 ![](./image/CF解析A记录.png)
 然后再去添加转发规则
