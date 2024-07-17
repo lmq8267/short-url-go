@@ -22,41 +22,55 @@ jobs:
         include:
           - GOARCH: arm64
             GOOS: linux
+            NAME: linux-aarch64
           - GOARCH: arm
             GOARM: 7
             GOOS: linux
+            NAME: linux-arm7
           - GOARCH: arm
             GOARM: 6
+            NAME: linux-arm6
             GOOS: linux
           - GOARCH: arm
             GOARM: 5
             GOOS: linux
+            NAME: linux-arm5
           - GOARCH: arm
             GOOS: linux
+            NAME: linux-arm
           - GOARCH: mipsle
             GOMIPS: softfloat
             GOOS: linux
+            NAME: linux-mipsel
           - GOARCH: mips
             GOMIPS: softfloat
             GOOS: linux
+            NAME: linux-mips
           - GOARCH: mips64
             GOOS: linux
+            NAME: linux-mips64
           - GOARCH: mips64le
             GOOS: linux
+            NAME: linux-mips64le
           - GOARCH: ppc64le
             GOOS: linux
+            NAME: linux-ppc64le
           - GOARCH: s390x
             GOOS: linux
+            NAME: linux-s390x
           - GOARCH: amd64
             GOOS: linux
+            NAME: linux-x86
           - GOARCH: amd64
             GOOS: freebsd
+            NAME: freebsd-x86
     runs-on: ubuntu-latest
     env:
       GOarch: ${{ matrix.GOARCH }}
       GOos: ${{ matrix.GOOS }}
       GOarm: ${{ matrix.GOARM }}
       GOmips: ${{ matrix.GOMIPS }}
+      NAME: ${{ matrix.NAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,7 +96,7 @@ jobs:
             go build -ldflags="-s -w"
             echo "shortener ：`ls -alh shortener | awk '{print $5}'`"
             file shortener
-            mv shortener shortener-${GOarch}${GOarm}${GOmips}
+            mv -f shortener /opt/shortener-${NAME}
             echo "build_time=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
             echo "build_tag=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       - name: 安装 UPX
@@ -95,7 +109,7 @@ jobs:
         if: github.event.inputs.upx == 'true' 
         run: |
           if [ "${GOos}" != "freebsd" ] && [ "${GOarch}" != "mips64" ] && [ "${GOarch}" != "mips64le" ] && [ "${GOarch}" != "ppc64le" ] && [ "${GOarch}" != "s390x" ]; then
-             upx --lzma --best shortener-${GOarch}${GOarm}${GOmips}
+             upx --lzma --best /opt/shortener-${NAME}
           fi
       - name: 发布 
         if: github.event.inputs.rel == 'true'
@@ -107,9 +121,9 @@ jobs:
            
           tag_name: ${{ env.build_tag }}
           name: Version:${{ env.build_tag }}
-          files: ./shortener-${GOarch}${GOarm}${GOmips}
+          files: /opt/shortener-${{ matrix.NAME }}
       - name: 上传
         uses: actions/upload-artifact@v4
         with:
-          name: shortener-${GOarch}${GOarm}${GOmips}
-          path: ./shortener-${GOarch}${GOarm}${GOmips}
+          name: shortener-${{ matrix.NAME }}
+          path: /opt/shortener-${{ matrix.NAME }}
