@@ -14,20 +14,38 @@
             background-color: #f0f8ff; /* 淡蓝色背景 */
         }
         #container {
-            
-            width: 88%; /* 宽度占据80% */
-            height: 88%; /* 高度占据80% */
+            width: 88%; /* 宽度占据88% */
+            height: 88%; /* 高度占据88% */
             overflow: auto; /* 支持滚动 */
             padding: 5px; /* 内边距 */
             box-sizing: border-box; /* 边框包含在宽度和高度内 */
+            position: relative; /* 相对定位 */
         }
         #content {
-            font-size: 30px; /* 固定大小的字体，可以根据需要调整像素大小 */
+            font-size: 15px; /* 固定大小的字体，可以根据需要调整像素大小 */
             font-weight: 900;
-            text-align: center;
+            text-align: left; /* 左对齐 */
             color: black; /* 黑色字体 */
-            word-break: break-word;
+            word-break: break-word; /* 自动换行 */
             white-space: pre-wrap; /* 保留原文换行 */
+            margin: 0; /* 去除外边距 */
+            padding: 0; /* 去除内边距 */
+        }
+        .floating-menu {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        .floating-menu button {
+            display: block;
+            width: 30px;
+            height: 30px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            text-align: center;
         }
     </style>
 </head>
@@ -37,5 +55,27 @@
             {长内容}
         </div>
     </div>
+
+    <div class="floating-menu">
+        <button onclick="adjustFontSize('+')">+</button>
+        <button onclick="adjustFontSize('-')">-</button>
+    </div>
+
+    <script>
+        // Function to handle font size adjustment
+        function adjustFontSize(direction) {
+            var content = document.getElementById('content');
+            var currentFontSize = parseInt(window.getComputedStyle(content).fontSize);
+            var newFontSize = currentFontSize;
+
+            if (direction === '+') {
+                newFontSize += 2;
+            } else if (direction === '-') {
+                newFontSize -= 2;
+            }
+
+            content.style.fontSize = newFontSize + 'px';
+        }
+    </script>
 </body>
 </html>
