@@ -23,7 +23,7 @@
 
 ### 运行
 ```bash
-./shortener
+./shortener -p 8080 -e email@test.cloudns.be 
 ```
 浏览器输入`http://本地ip:8080`打开主页<br>
 [s4.serv00.com:8828](http://s4.serv00.com:8828)
