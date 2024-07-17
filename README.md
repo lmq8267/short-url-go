@@ -28,7 +28,7 @@
 
 [s4.serv00.com:8828](http://s4.serv00.com:8828)
 
-数据保存在`./short_data/`目录里,以后缀名.json保存，重置后缀密码，直接清除里面的`"password": "",`即可
+数据保存在`./short_data/`目录里,以后缀名.json保存，重置后缀密码，直接清除里面的`"password": "",`即可<br>
 更换背景图在`./short_data/short_data.json`里面的`"img": "你的图片.jpg"`
 
 使用cf的转发规则，可以去掉端口，
