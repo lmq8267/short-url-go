@@ -27,6 +27,7 @@
 浏览器输入`http://本地ip:8080`打开主页
 
 [s4.serv00.com:8828](http://s4.serv00.com:8828)
+
 数据保存在`./short_data/`目录里,以后缀名.json保存，重置后缀密码，直接清除里面的`"password": "",`即可
 更换背景图在`./short_data/short_data.json`里面的`"img": "你的图片.jpg"`
 
