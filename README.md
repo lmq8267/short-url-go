@@ -8,7 +8,7 @@
 <a href="GitHub repo size"><img src="https://img.shields.io/github/repo-size/lmq8267/short-url-go?color=red&style=flat-square"/></a
 <a href="https://github.com/lmq8267/short-url-go/actions?query=workflow%3ABuild"><img src="https://img.shields.io/github/actions/workflow/status/lmq8267/short-url-go/build.yml?branch=main" alt="Build status"/></a
 </p>
-
+<br>纯AI的产的<br>
 ### 预览
 [tt.cnqq.cloudns.ch](https://tt.cnqq.cloudns.ch/)
 ![](./image/UI预览.png)
