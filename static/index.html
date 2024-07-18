@@ -257,6 +257,7 @@
                     <div class="alert alert-success">
                         <p class="lead">生成成功！</p>
                         <p class="lead" id="shortUrl"></p>
+                        <button class="btn btn-success" onclick="openShortUrl()">打开短链接</button>
                         <button class="btn btn-success" onclick="copyShortUrl()">复制短链接</button>
                     </div>
                 </div>
@@ -383,6 +384,10 @@
                 document.body.removeChild(textArea);
             }
         }
+    function openShortUrl() {
+        var shortUrl = document.getElementById("shortUrl").innerText;
+        window.open(shortUrl, '_blank');
+    }
 </script>
 </body>
 </html>
