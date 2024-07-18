@@ -24,6 +24,6 @@ jobs:
       with:
         context: .
         provenance: false
-        platforms: linux/amd64,linux/386,linux/s390x,linux/arm64,linux/arm/v7,linux/arm/v5
+        platforms: linux/amd64,linux/386,linux/s390x,linux/arm64,linux/arm/v7
         push: true
         tags: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/shortener:latest
