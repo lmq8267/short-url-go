@@ -12,15 +12,21 @@
             align-items: center;
             justify-content: center;
             background-color: #f0f8ff; /* 淡蓝色背景 */
-        }
-        #container {
-            width: 88%; /* 宽度占据88% */
-            height: 88%; /* 高度占据88% */
+       }
+
+       #container {
+            width: 92%; /* 宽度占据88% */
+            height: 92%; /* 高度占据88% */
             overflow: auto; /* 支持滚动 */
             padding: 5px; /* 内边距 */
             box-sizing: border-box; /* 边框包含在宽度和高度内 */
-            position: relative; /* 相对定位 */
+            /* 绝对定位 */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
+
         #content {
             font-size: 15px; /* 固定大小的字体，可以根据需要调整像素大小 */
             font-weight: 900;
