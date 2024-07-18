@@ -58,3 +58,11 @@ curl -k 'http://你的域名地址/api' -X POST -d '{ \
 `expiration` 表示有效期（分钟） 整数，留空表示永久有效<br>
 `burn_after_reading` 表示是否启用阅后即焚 `false`关闭 `true`开启<br>
 `password` 表示后缀密码，下次更新这个后缀的内容需要使用相同的密码才能更新<br>
+
+### Docker
+```bash
+docker run --name shortener -p 12345:8080/tcp -v /etc/short_data:/usr/bin/short_data --restart=always -d lmq8267/shortener
+
+```
+其中`-p 12345:8080/tcp` 表示映射主机上的`12345`端口到容器内部`8080`端口 可以自定义你的端口<br>
+     `-v /etc/short_data/:/usr/bin/short_data/` 表示挂载主机上的`/etc/short_data/`文件夹到容器内部的数据库目录`/usr/bin/short_data/`<br>
