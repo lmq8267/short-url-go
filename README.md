@@ -66,3 +66,17 @@ docker run --name shortener -p 12345:8080/tcp -v /etc/short_data:/usr/bin/short_
 ```
 其中`-p 12345:8080/tcp` 表示映射主机上的`12345`端口到容器内部`8080`端口 可以自定义你的端口<br>
      `-v /etc/short_data/:/usr/bin/short_data/` 表示挂载主机上的`/etc/short_data/`文件夹到容器内部的数据库目录`/usr/bin/short_data/`<br>
+<br> ####  docker-compose.yaml
+```bash
+version: '3.9'
+services:
+    shortener:
+        image: lmq8267/shortener
+        restart: always
+        volumes:
+            - '/etc/short_data:/usr/bin/short_data'
+        ports:
+            - '12345:8080/tcp'
+        container_name: shortener
+
+```
