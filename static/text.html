@@ -33,19 +33,41 @@
         }
         .floating-menu {
             position: fixed;
-            top: 10px;
+            top: 50%;
             right: 10px;
             z-index: 1000;
+            transform: translateY(-50%);
         }
         .floating-menu button {
             display: block;
             width: 30px;
             height: 30px;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             cursor: pointer;
             background-color: #fff;
             border: 1px solid #ccc;
             text-align: center;
+            font-weight: bold; /* 加粗文本 */
+        }
+        #color-picker {
+            position: fixed;
+            top: 50%;
+            right: -200px;
+            width: 150px;
+            padding: 10px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            transition: right 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #color-picker label {
+            margin: 5px 0;
+        }
+        #color-picker.show {
+            right: 0px;
         }
     </style>
 </head>
@@ -57,8 +79,16 @@
     </div>
 
     <div class="floating-menu">
+        <button onclick="toggleColorPicker()">🎨</button>
         <button onclick="adjustFontSize('+')">+</button>
         <button onclick="adjustFontSize('-')">-</button>
+    </div>
+
+    <div id="color-picker">
+        <label for="bg-color">选择背景色:</label>
+        <input type="color" id="bg-color">
+        <label for="font-color">选择字体色:</label>
+        <input type="color" id="font-color">
     </div>
 
     <script>
@@ -76,6 +106,31 @@
 
             content.style.fontSize = newFontSize + 'px';
         }
+
+        // Function to toggle the color picker visibility
+        function toggleColorPicker() {
+            var colorPicker = document.getElementById('color-picker');
+            colorPicker.classList.toggle('show');
+        }
+
+        // Function to hide the color picker when clicking outside
+        document.addEventListener('click', function(event) {
+            var colorPicker = document.getElementById('color-picker');
+            var target = event.target;
+
+            if (!colorPicker.contains(target) && target !== document.querySelector('.floating-menu button:first-child')) {
+                colorPicker.classList.remove('show');
+            }
+        });
+
+        // Function to handle color changes
+        document.getElementById('bg-color').addEventListener('input', function() {
+            document.getElementById('container').style.backgroundColor = this.value;
+        });
+
+        document.getElementById('font-color').addEventListener('input', function() {
+            document.getElementById('content').style.color = this.value;
+        });
     </script>
 </body>
 </html>
