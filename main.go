@@ -216,6 +216,14 @@ func apiHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
     if req.ShortCode == "" {
         req.ShortCode = generateRandomString(8)
     }
+    // 不能使用后缀api
+    if req.ShortCode == "api" {
+        errMsg := map[string]string{"error": "错误！该后缀是api调用，请使用其他后缀。"}
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(errMsg)
+        return
+    }
     // 判断请求里的type的值
     if req.Type == "link" {
         if !strings.HasPrefix(req.LongUrl, "http://") && !strings.HasPrefix(req.LongUrl, "https://") {
