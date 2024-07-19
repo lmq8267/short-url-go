@@ -19,11 +19,48 @@ import (
     "strings"
     "net/url"
     "math/rand"
+    "html/template"
+    "sync"
 )
 
 //go:embed static/*
 var content embed.FS
 var dataDir string
+
+var (
+	// 错误尝试限制和锁定时间
+	maxAttempts       = 5
+	lockoutDuration   = 10 * time.Minute
+	authenticationURL = "/admin-auth"
+	authCredentials   = map[string]string{}
+	lockoutData       = struct {
+		sync.RWMutex
+		attempts      int
+		lockout       time.Time
+	}{}
+	// 认证 cookie 的设置
+	authCookieName     = "authenticated"
+	authCookieValue    = "true"
+	authCookieAge      = 30 * time.Minute // 认证 cookie 的有效期
+	ipCookieName       = "auth-ip"
+	ipCookieValue      = "" // 动态设置
+)
+
+func init() {
+	// 从环境变量中获取用户名和密码
+	username := os.Getenv("USERNAME")
+	password := os.Getenv("PASSWORD")
+
+	// 如果环境变量为空，则使用默认值
+	if username == "" {
+		username = "admin"
+	}
+	if password == "" {
+		password = "admin"
+	}
+
+	authCredentials = map[string]string{username: password}
+}
 // 定义API请求的数据结构
 type ApiRequest struct {
     LongUrl          string `json:"longUrl"`
@@ -219,6 +256,14 @@ func apiHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
     // 不能使用后缀api
     if req.ShortCode == "api" {
         errMsg := map[string]string{"error": "错误！该后缀是api调用，请使用其他后缀。"}
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(errMsg)
+        return
+    }
+    // 不能使用后缀admin
+    if req.ShortCode == "admin" {
+        errMsg := map[string]string{"error": "错误！该后缀已经被使用，请使用正确的密码修改或使用其他后缀。"}
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(http.StatusBadRequest)
         json.NewEncoder(w).Encode(errMsg)
@@ -588,6 +633,553 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
     }
 }
 
+// 认证处理函数
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		if validPassword(username, password) {
+			// 获取当前 IP 地址
+			ip := getClientIP(r)
+
+			// 认证成功，设置认证 cookie 和 IP 地址 cookie
+			http.SetCookie(w, &http.Cookie{
+				Name:    authCookieName,
+				Value:   authCookieValue,
+				Path:    "/",
+				Expires: time.Now().Add(authCookieAge),
+				HttpOnly: true,
+			})
+
+			http.SetCookie(w, &http.Cookie{
+				Name:    ipCookieName,
+				Value:   ip,
+				Path:    "/",
+				Expires: time.Now().Add(authCookieAge),
+				HttpOnly: true,
+			})
+
+			http.Redirect(w, r, "/admin", http.StatusSeeOther)
+			return
+		}
+
+		// 认证失败，记录错误尝试
+		lockoutData.Lock()
+		defer lockoutData.Unlock()
+		lockoutData.attempts++
+		if lockoutData.attempts >= maxAttempts {
+			lockoutData.lockout = time.Now().Add(lockoutDuration)
+			http.Error(w, "连续输错次数过多，请十分钟后重试", http.StatusForbidden)
+			return
+		}
+
+		// 显示认证表单并添加错误提示
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, `
+			<!DOCTYPE html>
+			<html lang="zh-CN">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>登录</title>
+				<style>
+					body {
+						margin: 0;
+						padding: 0;
+						background-color: #f0f2f5;
+						font-family: Arial, sans-serif;
+					}
+					.container {
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						height: 100vh;
+					}
+					.form-container {
+						background: white;
+						padding: 20px;
+						border-radius: 8px;
+						box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+						text-align: center;
+						width: 360px;
+						position: relative;
+					}
+					.form-container h1 {
+						margin-bottom: 20px;
+						color: #333;
+					}
+					.form-container label {
+						display: block;
+						margin: 10px 0;
+						color: #555;
+					}
+					.form-container input[type="text"],
+					.form-container input[type="password"] {
+						width: calc(100% - 20px);
+						padding: 10px;
+						margin: 5px 0;
+						border: 1px solid #ccc;
+						border-radius: 4px;
+					}
+					.form-container input[type="submit"] {
+						background-color: #007bff;
+						color: white;
+						border: none;
+						padding: 10px 15px;
+						border-radius: 4px;
+						cursor: pointer;
+					}
+					.form-container input[type="submit"]:hover {
+						background-color: #0056b3;
+					}
+					.error-message {
+						color: red;
+						margin-bottom: 15px;
+						display: none;
+					}
+					.error-message.show {
+						display: block;
+					}
+					.shake {
+						animation: shake 0.5s;
+					}
+					@keyframes shake {
+						0% { transform: translateX(0); }
+						25% { transform: translateX(-5px); }
+						50% { transform: translateX(5px); }
+						75% { transform: translateX(-5px); }
+						100% { transform: translateX(0); }
+					}
+				</style>
+			</head>
+			<body>
+				<div class="container">
+					<div class="form-container">
+						<h1>登录</h1>
+						<div id="error-message" class="error-message">账户或密码错误</div>
+						<form method="post" id="login-form">
+							<label>用户名: <input type="text" name="username" /></label>
+							<label>密码: <input type="password" name="password" /></label>
+							<input type="submit" value="登录" />
+						</form>
+					</div>
+				</div>
+				<script>
+					document.addEventListener('DOMContentLoaded', function() {
+						const form = document.getElementById('login-form');
+						const errorMessage = document.getElementById('error-message');
+						if (errorMessage.textContent.trim() !== '') {
+							errorMessage.classList.add('show');
+							form.classList.add('shake');
+							setTimeout(() => form.classList.remove('shake'), 500);
+						}
+					});
+				</script>
+			</body>
+			</html>
+		`)
+		return
+	}
+
+	// 显示认证表单
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, `
+		<!DOCTYPE html>
+		<html lang="zh-CN">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>登录</title>
+			<style>
+				body {
+					margin: 0;
+					padding: 0;
+					background-color: #f0f2f5;
+					font-family: Arial, sans-serif;
+				}
+				.container {
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					height: 100vh;
+				}
+				.form-container {
+					background: white;
+					padding: 20px;
+					border-radius: 8px;
+					box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+					text-align: center;
+					width: 360px;
+				}
+				.form-container h1 {
+					margin-bottom: 20px;
+					color: #333;
+				}
+				.form-container label {
+					display: block;
+					margin: 10px 0;
+					color: #555;
+				}
+				.form-container input[type="text"],
+				.form-container input[type="password"] {
+					width: calc(100% - 20px);
+					padding: 10px;
+					margin: 5px 0;
+					border: 1px solid #ccc;
+					border-radius: 4px;
+				}
+				.form-container input[type="submit"] {
+					background-color: #007bff;
+					color: white;
+					border: none;
+					padding: 10px 15px;
+					border-radius: 4px;
+					cursor: pointer;
+				}
+				.form-container input[type="submit"]:hover {
+					background-color: #0056b3;
+				}
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				<div class="form-container">
+					<h1>登录</h1>
+					<form method="post">
+						<label>用户名: <input type="text" name="username" /></label>
+						<label>密码: <input type="password" name="password" /></label>
+						<input type="submit" value="登录" />
+					</form>
+				</div>
+			</div>
+		</body>
+		</html>
+	`)
+}
+
+
+// 校验账户和密码
+func validPassword(username, password string) bool {
+	if pwd, ok := authCredentials[username]; ok && pwd == password {
+		return true
+	}
+	return false
+}
+
+// 检查是否已认证
+func isAuthenticated(r *http.Request) bool {
+	authCookie, err := r.Cookie(authCookieName)
+	if err != nil || authCookie.Value != authCookieValue {
+		return false
+	}
+
+	ipCookie, err := r.Cookie(ipCookieName)
+	if err != nil {
+		return false
+	}
+
+	ip := getClientIP(r)
+	return ip == ipCookie.Value
+}
+
+// 处理/admin请求
+func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
+
+	// 检查锁定状态
+	lockoutData.RLock()
+	defer lockoutData.RUnlock()
+	if time.Now().Before(lockoutData.lockout) {
+		http.Error(w, "连续输错次数过多，请十分钟后重试", http.StatusForbidden)
+		return
+	}
+	
+	// 读取dataDir目录中的所有.json文件（不包括short_data.json）
+	files, err := filepath.Glob(filepath.Join(dataDir, "*.json"))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("无法读取数据目录：%v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// 定义结构用于保存所有文件的数据
+	var allData []ApiRequest
+
+	// 读取每个JSON文件的内容
+	for _, file := range files {
+		if filepath.Base(file) == "short_data.json" {
+			continue
+		}
+
+		// 读取JSON文件内容
+		content, err := os.ReadFile(file)
+		if err != nil {
+			log.Printf("无法读取文件 %s: %v", file, err)
+			continue
+		}
+
+		var data ApiRequest
+		if err := json.Unmarshal(content, &data); err != nil {
+			log.Printf("无法解析文件 %s: %v", file, err)
+			continue
+		}
+
+		allData = append(allData, data)
+	}
+
+	// 生成HTML响应
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	renderAdminPage(w, allData)
+}
+
+// 生成/admin页面的HTML响应
+func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
+	// 定义模板
+	const adminTemplate = `
+	<!DOCTYPE html>
+	<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8">
+		<title>管理页面</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				background-color: #f4f4f4;
+				margin: 0;
+				padding: 0;
+			}
+			h2 {
+				text-align: center;
+				color: #333;
+				padding: 20px;
+			}
+			.container {
+				width: 90%;
+				margin: 0 auto;
+				padding: 20px;
+				background-color: #fff;
+				box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+				border-radius: 8px;
+			}
+			input[type="text"], select {
+				padding: 10px;
+				margin: 10px 0;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				width: calc(100% - 24px);
+			}
+			button {
+				background-color: #007bff;
+				color: #fff;
+				border: none;
+				padding: 10px 20px;
+				margin: 10px;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 16px;
+			}
+			button:hover {
+				background-color: #0056b3;
+			}
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				margin: 20px 0;
+			}
+			table, th, td {
+				border: 1px solid #ddd;
+			}
+			th {
+				background-color: #007bff;
+				color: #fff;
+				padding: 12px;
+			}
+			td {
+				padding: 10px;
+				text-align: center;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+			td:nth-child(1) {
+				width: 300px;
+				white-space: normal;
+			}
+			.highlight {
+				background-color: yellow;
+			}
+			.pagination {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				margin: 20px 0;
+			}
+			.pagination span {
+				margin: 0 10px;
+			}
+			@media (max-width: 768px) {
+				.container {
+					width: 100%;
+					padding: 10px;
+				}
+				button {
+					width: 100%;
+					margin: 5px 0;
+				}
+				input[type="text"], select {
+					width: 100%;
+				}
+			}
+		</style>
+		<script>
+			function searchTable() {
+				var input, filter, table, tr, td, i, j, txtValue;
+				input = document.getElementById("searchInput");
+				filter = input.value.toLowerCase();
+				table = document.getElementById("dataTable");
+				tr = table.getElementsByTagName("tr");
+				for (i = 1; i < tr.length; i++) {
+					td = tr[i].getElementsByTagName("td");
+					for (j = 0; j < td.length; j++) {
+						td[j].classList.remove("highlight");
+					}
+					tr[i].style.display = "";
+				}
+				if (filter === "") {
+					return;
+				}
+				for (i = 1; i < tr.length; i++) {
+					tr[i].style.display = "none";
+					td = tr[i].getElementsByTagName("td");
+					for (j = 0; j < td.length; j++) {
+						if (td[j]) {
+							txtValue = td[j].textContent || td[j].innerText;
+							if (txtValue.toLowerCase().indexOf(filter) > -1) {
+								tr[i].style.display = "";
+								td[j].classList.add("highlight");
+							}
+						}
+					}
+				}
+			}
+			var pageSize = 5;
+			var currentPage = 1;
+
+			function previousPage() {
+				if (currentPage > 1) {
+					currentPage--;
+					updateTablePagination();
+				}
+			}
+
+			function nextPage() {
+				var totalItems = document.getElementById("dataTable").getElementsByTagName("tr").length - 1;
+				var totalPages = Math.ceil(totalItems / pageSize);
+				if (currentPage < totalPages) {
+					currentPage++;
+					updateTablePagination();
+				}
+			}
+
+			function updateTablePagination() {
+				var rows = document.getElementById("dataTable").getElementsByTagName("tr");
+				var start = (currentPage - 1) * pageSize + 1;
+				var end = start + pageSize - 1;
+
+				for (var i = 1; i < rows.length; i++) {
+					rows[i].style.display = "none";
+				}
+
+				for (var i = start; i <= end && i < rows.length; i++) {
+					rows[i].style.display = "";
+				}
+
+				document.getElementById("currentPage").innerText = " 当前页: " + currentPage + " / ";
+				document.getElementById("totalPages").innerText = " 总页数: " + Math.ceil(rows.length / pageSize);
+			}
+
+			window.onload = function() {
+				var savedPageSize = localStorage.getItem("pageSize");
+				if (savedPageSize) {
+					pageSize = parseInt(savedPageSize);
+				}
+				updatePageSizeSelect();
+				updateTablePagination();
+			};
+
+			function changePageSize() {
+				var select = document.getElementById("pageSizeSelect");
+				pageSize = parseInt(select.value);
+				localStorage.setItem("pageSize", pageSize);
+				currentPage = 1;
+				updateTablePagination();
+			}
+
+			function updatePageSizeSelect() {
+				var select = document.getElementById("pageSizeSelect");
+				for (var i = 0; i < select.options.length; i++) {
+					if (parseInt(select.options[i].value) === pageSize) {
+						select.selectedIndex = i;
+						break;
+					}
+				}
+			}
+		</script>
+	</head>
+	<body>
+		<h2>管理页面</h2>
+		<div class="container">
+			<input type="text" id="searchInput" onkeyup="searchTable()" placeholder="搜索关键词">
+			<select id="pageSizeSelect" onchange="changePageSize()">
+				<option value="5">5 个/页</option>
+				<option value="10">10 个/页</option>
+				<option value="20">20 个/页</option>
+				<option value="50">50 个/页</option>
+			</select>
+			<div class="pagination">
+				<button onclick="previousPage()">上一页</button>
+				<button onclick="nextPage()">下一页</button>
+				<span id="currentPage"></span><span id="totalPages"></span>
+			</div>
+			<table id="dataTable">
+				<tr>
+					<th>长链接/内容/html源码</th>
+					<th>后缀</th>
+					<th>密码</th>
+					<th>客户端IP</th>
+					<th>过期时间</th>
+					<th>阅后即焚</th>
+					<th>类型</th>
+					<th>最后更新时间</th>
+				</tr>
+				{{ range $data := . }}
+				<tr>
+					<td>{{ .LongUrl }}</td>
+					<td>{{ .ShortCode }}</td>
+					<td>{{ .Password }}</td>
+					<td>{{ .ClientIP }}</td>
+					<td>{{ .Expiration }}</td>
+					<td>{{ .BurnAfterReading }}</td>
+					<td>{{ .Type }}</td>
+					<td>{{ .LastUpdate }}</td>
+				</tr>
+				{{ end }}
+			</table>
+		</div>
+	</body>
+	</html>
+	`
+
+	// 创建模板并执行
+	tmpl := template.Must(template.New("admin").Parse(adminTemplate))
+
+	err := tmpl.Execute(w, data)
+	if err != nil {
+		log.Printf("无法生成HTML响应: %v", err)
+		http.Error(w, "无法生成HTML响应", http.StatusInternalServerError)
+		return
+	}
+}
+
+
 func main() {
     
     var (
@@ -596,11 +1188,16 @@ func main() {
         showHelp bool
         showVersion bool
         email   string
+        username   string
+        password   string
+        
     )
 
     // 使用flag包解析命令行参数
     flag.IntVar(&port, "p", 8080, "监听端口")
     flag.StringVar(&dataDir, "d", "", "指定数据存放目录路径")
+    flag.StringVar(&username, "u", "admin", "指定管理页面账户名")
+    flag.StringVar(&password, "w", "admin", "指定管理页面密码")
     flag.BoolVar(&daemon, "f", false, "后台运行")
     flag.StringVar(&email, "e", "请修改为你的邮箱", "指定邮箱")
     flag.BoolVar(&showHelp, "h", false, "帮助信息")
@@ -631,6 +1228,16 @@ func main() {
 	colorPrint(36, fmt.Sprintf("-e "))
 	colorPrint(34, fmt.Sprintf("[邮箱地址]"))
 	fmt.Println(" 指定邮箱地址，修改页面的邮箱地址")
+	
+	fmt.Printf("  %s ", os.Args[0])
+	colorPrint(36, fmt.Sprintf("-u "))
+	colorPrint(34, fmt.Sprintf("[账户名]"))
+	fmt.Println(" 指定管理页面的登陆账户名")
+	
+	fmt.Printf("  %s ", os.Args[0])
+	colorPrint(36, fmt.Sprintf("-w "))
+	colorPrint(34, fmt.Sprintf("[密码]"))
+	fmt.Println(" 指定管理页面的登陆密码")
 
 	fmt.Printf("  %s ", os.Args[0])
 	colorPrint(36, fmt.Sprintf("-f "))
@@ -657,6 +1264,12 @@ func main() {
 
     if email != "" {
 		os.Setenv("Email", email)
+    }
+    if username != "" {
+		os.Setenv("USERNAME", username)
+    }
+    if password != "" {
+		os.Setenv("PASSWORD", password)
     }
     // 获取当前二进制文件的目录并设为数据存放目录的/short_data子目录
     if dataDir == "" {
@@ -711,7 +1324,18 @@ func main() {
     } else if r.URL.Path == "/" {
         // 处理主页
         indexHandler(w, r)
-    } else {
+    } else if r.URL.Path == "/admin" {
+		if !isAuthenticated(r) {
+			// 如果未认证，重定向到认证页面
+			http.Redirect(w, r, authenticationURL, http.StatusSeeOther)
+			return
+		}
+		// 认证成功，处理 /admin 路由
+		adminHandler(w, r, dataDir)
+	} else if r.URL.Path == authenticationURL {
+		// 处理认证路由
+		authHandler(w, r)
+	} else {
         // 处理其他后缀
         shortHandler(w, r, dataDir)
     }
