@@ -41,26 +41,12 @@ var (
 	// 认证 cookie 的设置
 	authCookieName     = "authenticated"
 	authCookieValue    = "true"
-	authCookieAge      = 30 * time.Minute // 认证 cookie 的有效期
+	authCookieAge      = 10 * time.Minute // 认证 cookie 的有效期
 	ipCookieName       = "auth-ip"
 	ipCookieValue      = "" // 动态设置
 )
 
-func init() {
-	// 从环境变量中获取用户名和密码
-	username := os.Getenv("USERNAME")
-	password := os.Getenv("PASSWORD")
 
-	// 如果环境变量为空，则使用默认值
-	if username == "" {
-		username = "admin"
-	}
-	if password == "" {
-		password = "admin"
-	}
-
-	authCredentials = map[string]string{username: password}
-}
 // 定义API请求的数据结构
 type ApiRequest struct {
     LongUrl          string `json:"longUrl"`
@@ -893,7 +879,75 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		http.Error(w, "连续输错次数过多，请十分钟后重试", http.StatusForbidden)
 		return
 	}
-	
+	// 处理删除请求
+	if r.Method == http.MethodPost && r.FormValue("mode") == "delete" {
+		shortCode := r.FormValue("shortcode")
+		if shortCode == "" {
+			http.Error(w, "缺少必要的参数", http.StatusBadRequest)
+			return
+		}
+
+		// 构建要删除的文件路径
+		filePath := filepath.Join(dataDir, shortCode+".json")
+
+		// 删除文件
+		err := os.Remove(filePath)
+		if err != nil {
+			log.Printf("删除文件失败 %s: %v", filePath, err)
+			http.Error(w, "删除失败", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	// 处理编辑请求
+	if r.Method == http.MethodPost && r.FormValue("mode") == "edit" {
+		var data ApiRequest
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&data)
+		if err != nil {
+			http.Error(w, "无效的请求数据", http.StatusBadRequest)
+			return
+		}
+
+		// 使用 ShortCode 作为文件名
+		shortCode := data.ShortCode
+		if shortCode == "" {
+			http.Error(w, "缺少 ShortCode", http.StatusBadRequest)
+			return
+		}
+
+		// 构建要更新的文件路径
+		filePath := filepath.Join(dataDir, shortCode+".json")
+
+		// 读取文件内容
+		_, err = os.Stat(filePath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				http.Error(w, "文件不存在", http.StatusNotFound)
+				return
+			}
+			http.Error(w, "无法读取文件", http.StatusInternalServerError)
+			return
+		}
+
+		// 写入新数据到文件
+		fileContent, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			http.Error(w, "无法序列化数据", http.StatusInternalServerError)
+			return
+		}
+
+		err = os.WriteFile(filePath, fileContent, 0644)
+		if err != nil {
+			http.Error(w, "无法写入文件", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	// 读取dataDir目录中的所有.json文件（不包括short_data.json）
 	files, err := filepath.Glob(filepath.Join(dataDir, "*.json"))
 	if err != nil {
@@ -960,12 +1014,17 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 				box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 				border-radius: 8px;
 			}
-			input[type="text"], select {
+			input[type="text"], textarea {
 				padding: 10px;
 				margin: 10px 0;
 				border: 1px solid #ddd;
 				border-radius: 4px;
-				width: calc(100% - 24px);
+				width: 100%;
+				box-sizing: border-box;
+			}
+			textarea {
+				resize: vertical;
+				min-height: 40px;
 			}
 			button {
 				background-color: #007bff;
@@ -1024,9 +1083,12 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 					width: 100%;
 					margin: 5px 0;
 				}
-				input[type="text"], select {
+				input[type="text"], textarea {
 					width: 100%;
 				}
+			}
+			.editable {
+				background-color: #f0f8ff;
 			}
 		</style>
 		<script>
@@ -1060,6 +1122,7 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 					}
 				}
 			}
+
 			var pageSize = 5;
 			var currentPage = 1;
 
@@ -1122,59 +1185,161 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 					}
 				}
 			}
+
+			function deleteRow(shortcode) {
+				if (confirm("确定要删除此项吗？")) {
+					var xhr = new XMLHttpRequest();
+					xhr.open("POST", "/admin?mode=delete", true);
+					xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+					xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+					xhr.send("shortcode=" + encodeURIComponent(shortcode));
+					xhr.onload = function() {
+						if (xhr.status === 200) {
+							alert("删除成功: " + xhr.responseText);
+							location.reload();
+						} else {
+							alert("删除失败: " + xhr.responseText);
+						}
+					};
+				}
+			}
+
+			function editRow(row) {
+				var cells = row.getElementsByTagName("td");
+				for (var i = 0; i < cells.length; i++) {
+					if (i < cells.length - 1) { // Skip the last cell (action buttons)
+						if (i !== 1) { // Skip the second cell (ShortCode)
+							var textarea = document.createElement("textarea");
+							textarea.value = cells[i].innerText;
+							textarea.className = "editable";
+							textarea.oninput = function() { adjustTextAreaHeight(this); };
+							cells[i].innerHTML = "";
+							cells[i].appendChild(textarea);
+							adjustTextAreaHeight(textarea);
+						}
+					}
+				}
+				row.querySelector("button.edit").style.display = "none";
+				row.querySelector("button.submit").style.display = "inline-block";
+				row.classList.add("editing");
+
+				// Detect click outside to cancel editing
+				document.addEventListener("click", function(e) {
+					if (!row.contains(e.target) && row.classList.contains("editing")) {
+						cancelEdit(row);
+					}
+				});
+			}
+
+			function submitEdit(row) {
+				var cells = row.getElementsByTagName("td");
+				var data = {};
+				for (var i = 0; i < cells.length; i++) {
+					if (i < cells.length - 1) { // Skip the last cell (action buttons)
+						if (i !== 1) { // Skip the second cell (ShortCode)
+							data[cells[i].getAttribute("data-field")] = cells[i].getElementsByTagName("textarea")[0].value;
+						}
+					}
+				}
+				var shortcode = row.querySelector("td:nth-child(2)").innerText;
+				data.shortcode = shortcode;
+
+				var xhr = new XMLHttpRequest();
+				xhr.open("POST", "/admin?mode=edit", true);
+				xhr.setRequestHeader("Content-Type", "application/json");
+				xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+				xhr.send(JSON.stringify(data));
+				xhr.onload = function() {
+					if (xhr.status === 200) {
+						alert("修改成功: " + xhr.responseText);
+						location.reload();
+					} else {
+						alert("修改失败: " + xhr.responseText);
+					}
+				};
+			}
+
+			function cancelEdit(row) {
+				var cells = row.getElementsByTagName("td");
+				for (var i = 0; i < cells.length; i++) {
+					if (i < cells.length - 1) { // Skip the last cell (action buttons)
+						if (i !== 1) { // Skip the second cell (ShortCode)
+							cells[i].innerHTML = cells[i].getElementsByTagName("textarea")[0].value;
+						}
+					}
+				}
+				row.querySelector("button.edit").style.display = "inline-block";
+				row.querySelector("button.submit").style.display = "none";
+				row.classList.remove("editing");
+			}
+
+			function adjustTextAreaHeight(textarea) {
+				textarea.style.height = 'auto';
+				textarea.style.height = (textarea.scrollHeight) + 'px';
+			}
 		</script>
 	</head>
 	<body>
 		<h2>管理页面</h2>
 		<div class="container">
-			<input type="text" id="searchInput" onkeyup="searchTable()" placeholder="搜索关键词">
-			<select id="pageSizeSelect" onchange="changePageSize()">
-				<option value="5">5 个/页</option>
-				<option value="10">10 个/页</option>
-				<option value="20">20 个/页</option>
-				<option value="50">50 个/页</option>
-			</select>
+			<input type="text" id="searchInput" onkeyup="searchTable()" placeholder="搜索...">
+			<table id="dataTable">
+				<thead>
+					<tr>
+						<th>长链接</th>
+						<th>短码</th>
+						<th>密码</th>
+						<th>到期时间</th>
+						<th>阅后即焚</th>
+						<th>类型</th>
+						<th>最后更新</th>
+						<th>操作</th>
+					</tr>
+				</thead>
+				<tbody>
+					{{range .}}
+					<tr>
+						<td data-field="LongUrl">{{.LongUrl}}</td>
+						<td>{{.ShortCode}}</td>
+						<td data-field="Password">{{.Password}}</td>
+						<td data-field="Expiration">{{.Expiration}}</td>
+						<td data-field="BurnAfterReading">{{.BurnAfterReading}}</td>
+						<td data-field="Type">{{.Type}}</td>
+						<td data-field="LastUpdate">{{.LastUpdate}}</td>
+						<td>
+							<button class="edit" onclick="editRow(this.closest('tr'))">编辑</button>
+							<button class="submit" style="display:none;" onclick="submitEdit(this.closest('tr'))">提交</button>
+							<button onclick="deleteRow('{{.ShortCode}}')">删除</button>
+						</td>
+					</tr>
+					{{end}}
+				</tbody>
+			</table>
 			<div class="pagination">
 				<button onclick="previousPage()">上一页</button>
+				<span id="currentPage"> 当前页: 1 / </span><span id="totalPages"> 总页数: 1</span>
 				<button onclick="nextPage()">下一页</button>
-				<span id="currentPage"></span><span id="totalPages"></span>
 			</div>
-			<table id="dataTable">
-				<tr>
-					<th>长链接/内容/html源码</th>
-					<th>后缀</th>
-					<th>密码</th>
-					<th>客户端IP</th>
-					<th>过期时间</th>
-					<th>阅后即焚</th>
-					<th>类型</th>
-					<th>最后更新时间</th>
-				</tr>
-				{{ range $data := . }}
-				<tr>
-					<td>{{ .LongUrl }}</td>
-					<td>{{ .ShortCode }}</td>
-					<td>{{ .Password }}</td>
-					<td>{{ .ClientIP }}</td>
-					<td>{{ .Expiration }}</td>
-					<td>{{ .BurnAfterReading }}</td>
-					<td>{{ .Type }}</td>
-					<td>{{ .LastUpdate }}</td>
-				</tr>
-				{{ end }}
-			</table>
+			<select id="pageSizeSelect" onchange="changePageSize()">
+				<option value="5">每页 5 项</option>
+				<option value="10">每页 10 项</option>
+				<option value="15">每页 15 项</option>
+			</select>
 		</div>
 	</body>
 	</html>
 	`
 
-	// 创建模板并执行
-	tmpl := template.Must(template.New("admin").Parse(adminTemplate))
-
-	err := tmpl.Execute(w, data)
+	// 渲染页面
+	tmpl, err := template.New("admin").Parse(adminTemplate)
 	if err != nil {
-		log.Printf("无法生成HTML响应: %v", err)
-		http.Error(w, "无法生成HTML响应", http.StatusInternalServerError)
+		http.Error(w, "无法解析模板", http.StatusInternalServerError)
+		return
+	}
+
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		http.Error(w, "无法渲染模板", http.StatusInternalServerError)
 		return
 	}
 }
@@ -1265,12 +1430,7 @@ func main() {
     if email != "" {
 		os.Setenv("Email", email)
     }
-    if username != "" {
-		os.Setenv("USERNAME", username)
-    }
-    if password != "" {
-		os.Setenv("PASSWORD", password)
-    }
+    authCredentials = map[string]string{username: password}
     // 获取当前二进制文件的目录并设为数据存放目录的/short_data子目录
     if dataDir == "" {
         exePath, err := filepath.Abs(os.Args[0])
