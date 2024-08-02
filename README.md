@@ -7,6 +7,7 @@
 <a href="https://github.com/lmq8267/short-url-go/discussions"><img src="https://img.shields.io/github/discussions/lmq8267/short-url-go"/></a
 <a href="GitHub repo size"><img src="https://img.shields.io/github/repo-size/lmq8267/short-url-go?color=red&style=flat-square"/></a
 <a href="https://github.com/lmq8267/short-url-go/actions?query=workflow%3ABuild"><img src="https://img.shields.io/github/actions/workflow/status/lmq8267/short-url-go/build.yml?branch=main" alt="Build status"/></a
+<a href="https://hub.docker.com/r/lmq8267/shortener"><img src="https://img.shields.io/docker/pulls/lmq8267/shortener?color=%2348BB78&logo=docker&label=pulls" alt="Downloads"/></a
 </p>
 
 <br> 纯AI的产的 <br>
@@ -19,7 +20,9 @@
 -p [端口号] 监听指定端口号,默认8080
 -d [目录路径] 指定数据存放目录路径，默认当前程序路径的./short_data
 -e [邮箱地址] 指定邮箱地址，修改页面的邮箱地址
--f  后台运行,此模式下请加-d 参数指定数据路径
+-admin     启用后台管理页面
+-u [帐号] 指定管理页面账户名
+-w [密码] 指定管理页面密码
 ```
 
 ### 运行
