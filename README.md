@@ -19,6 +19,7 @@
 ```bash
 -p [端口号] 监听指定端口号,默认8080
 -d [目录路径] 指定数据存放目录路径，默认当前程序路径的./short_data
+-log [目录路径] 指定日志输出文件的目录路径
 -e [邮箱地址] 指定邮箱地址，修改页面的邮箱地址
 -admin     启用后台管理页面（/admin 后缀进入管理员页面）
 -u [帐号] 指定管理页面账户名
@@ -27,7 +28,7 @@
 
 ### 运行
 ```bash
-./shortener -p 8080 -e email@test.cloudns.be &
+./shortener -p 8080 -e email@test.cloudns.be -log /tmp/shortener/ -admin -u admin -w wodemima &
 ```
 浏览器输入`http://本地ip:8080`打开主页<br>
 [s4.serv00.com:8828](http://s4.serv00.com:8828)
