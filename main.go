@@ -222,11 +222,14 @@ func getClientIP(r *http.Request) string {
         ip = strings.TrimSpace(ips[0]) // 使用列表中的第一个IP地址
     }
 
-    // 如果IP地址包含端口号（IPv4或IPv6），则分割主机和端口
+    // 检查IP地址是否包含端口号
     if strings.Contains(ip, ":") {
-        ip, _, _ = net.SplitHostPort(ip)
+        if strings.Count(ip, ":") == 1 {
+            // 处理端口号
+            ip, _, _ = net.SplitHostPort(ip)
+            
+        }
     }
-
     return ip
 }
 // 处理API请求
