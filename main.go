@@ -45,6 +45,11 @@ var (
 	ipCookieValue      = "" // 动态设置
 )
 
+func init() {
+    // 设置时区为上海
+    loc := time.FixedZone("CST", 8*60*60)
+    time.Local = loc
+}
 
 // 定义API请求的数据结构
 type ApiRequest struct {
@@ -631,11 +636,12 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		username := r.FormValue("username")
 		password := r.FormValue("password")
+		// 获取当前 IP 地址
+		ip := getClientIP(r)
+		
 
 		if validPassword(username, password) {
-			// 获取当前 IP 地址
-			ip := getClientIP(r)
-
+                       log.Printf("用户 IP: %s 登录成功！", ip)
 			// 认证成功，设置认证 cookie 和 IP 地址 cookie
 			http.SetCookie(w, &http.Cookie{
 				Name:    authCookieName,
@@ -658,6 +664,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 认证失败，记录错误尝试
+		log.Printf("用户 IP: %s 使用帐号：%s 密码：%s 尝试登录！", ip, username, password)
 		lockoutData.Lock()
 		defer lockoutData.Unlock()
 		lockoutData.attempts++
@@ -900,12 +907,13 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		// 删除文件
 		err := os.Remove(filePath)
 		if err != nil {
-			log.Printf("删除文件失败 %s: %v", filePath, err)
+			log.Printf("删除%s失败 : %v", filePath, err)
 			http.Error(w, "删除失败", http.StatusInternalServerError)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("删除成功"))
 		return
 	}
 		// 处理编辑请求
@@ -953,6 +961,7 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("修改成功"))
 		return
 	}
 	// 读取dataDir目录中的所有.json文件（不包括short_data.json）
@@ -1202,10 +1211,12 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 					xhr.send("shortcode=" + encodeURIComponent(shortcode));
 					xhr.onload = function() {
 						if (xhr.status === 200) {
-							alert("删除成功" + xhr.responseText);
+						   if (xhr.responseText.includes('删除成功')) {
+						      alert('删除成功');
+						   } else {
+						      alert('删除失败');
+						   }
 							location.reload();
-						} else {
-							alert("删除失败" + xhr.responseText);
 						}
 					};
 				}
@@ -1300,10 +1311,12 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 			xhr.send(JSON.stringify(data));
 			xhr.onload = function() {
 				if (xhr.status === 200) {
-					alert("修改成功" + xhr.responseText);
+				   if (xhr.responseText.includes('修改成功')) {
+				      alert('修改成功');
+				   } else {
+				      alert('修改失败');
+				   }
 					location.reload();
-				} else {
-					alert("修改失败" + xhr.responseText);
 				}
 			};
 		}
@@ -1418,7 +1431,7 @@ func main() {
     flag.StringVar(&dataDir, "d", "", "指定数据存放目录路径")
     flag.StringVar(&username, "u", "admin", "指定管理页面账户名")
     flag.StringVar(&password, "w", "admin", "指定管理页面密码")
-    flag.BoolVar(&admin, "admin", false, "管理员模式")
+    flag.BoolVar(&admin, "admin", false, "启用管理员模式")
     flag.StringVar(&email, "e", "请修改为你的邮箱", "指定邮箱")
     flag.BoolVar(&showHelp, "h", false, "帮助信息")
     flag.BoolVar(&showHelp, "help", false, "帮助信息")
