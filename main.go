@@ -20,13 +20,17 @@ import (
     "math/rand"
     "html/template"
     "sync"
+    "io"
+    "github.com/natefinch/lumberjack"
 )
 
 //go:embed static/*
 var content embed.FS
-var dataDir string
-var admin bool
+
 var (
+        dataDir string
+        admin bool
+        logDir string
 	// 错误尝试限制和锁定时间
 	maxAttempts       = 5
 	lockoutDuration   = 10 * time.Minute
@@ -232,6 +236,7 @@ func getClientIP(r *http.Request) string {
     }
     return ip
 }
+
 // 处理API请求
 func apiHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
     var req ApiRequest
@@ -896,6 +901,21 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		http.Error(w, "连续输错次数太多啦，请休息一会儿后再试吧！", http.StatusForbidden)
 		return
 	}
+	//处理清理日志请求
+	      if r.Method == http.MethodPost && r.FormValue("mode") == "del-log" {
+	         if logDir != "" {
+			logFile := fmt.Sprintf("%s/shortener.log", logDir)
+			err := os.Truncate(logFile, 0)
+			if err != nil {
+				http.Error(w, "无法清空日志", http.StatusInternalServerError)
+				return
+			}
+			fmt.Fprintln(w, "清空日志成功")
+		} else {
+			http.Error(w, "日志目录未指定", http.StatusInternalServerError)
+		}
+	}
+	
 	// 处理删除请求
 	if r.Method == http.MethodPost && r.FormValue("mode") == "delete" {
 		shortCode := r.FormValue("shortcode")
@@ -919,6 +939,7 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		w.Write([]byte("删除成功"))
 		return
 	}
+	
 		// 处理编辑请求
 	        if r.Method == http.MethodPost && r.FormValue("mode") == "edit" {
 		var data ApiRequest
@@ -1006,6 +1027,15 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 
 // 生成/admin页面的HTML响应
 func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
+        // 读取日志文件内容
+	var logContent string
+	if logDir != "" {
+		logFile := fmt.Sprintf("%s/shortener.log", logDir)
+		content, err := ioutil.ReadFile(logFile)
+		if err == nil {
+			logContent = string(content)
+		}
+	}
 	// 定义模板
 	const adminTemplate = `
 	<!DOCTYPE html>
@@ -1109,6 +1139,73 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 			.editable {
 				background-color: #f0f8ff;
 			}
+			/* 新增日志悬浮按钮和展示区域的样式 */
+		        /* 日志弹出框样式 */
+        .log-popup {
+            display: none;
+            position: fixed;
+            top: 10%;
+            right: 10%;
+            width: 80%;
+            height: 70%;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 1000;
+            padding: 10px;
+        }
+        .log-popup .log-content {
+            height: calc(100% - 50px); /* 减去顶部和底部的高度 */
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+            white-space: pre-wrap; /* 保持原有的换行 */
+        }
+        .log-popup .log-footer {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+        }
+        .log-popup .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 40px;  /* 控制按钮的宽度 */
+    height: 40px;  /* 控制按钮的高度 */
+    background-color: #007bff;  /* 按钮背景色为蓝色 */
+    color: #ffffff;  /* 文字颜色为白色 */
+    border: none;
+    border-radius: 50%;  /* 使用50%的圆角使其呈现圆形效果 */
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;  /* 使用flex布局使得按钮内文字垂直水平居中 */
+    justify-content: center;
+    align-items: center;
+}
+
+.log-popup .close-btn:hover {
+    background-color: #0056b3;  /* 鼠标悬停时按钮背景色稍微变深 */
+}
+
+        /* 悬浮按钮样式 */
+        .floating-btn {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px; /* 使用圆角半径使其呈现矩形效果 */
+    cursor: pointer;
+    font-size: 16px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+        .floating-btn:hover {
+            background-color: #0056b3;
+        }
 		</style>
 		<script>
 			function searchTable() {
@@ -1344,6 +1441,36 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 				textarea.style.height = 'auto';
 				textarea.style.height = (textarea.scrollHeight) + 'px';
 			}
+			function showLogPopup() {
+            var popup = document.getElementById("logPopup");
+            popup.style.display = "block";
+            var logContent = document.getElementById("logContent");
+            logContent.scrollTop = logContent.scrollHeight; // 自动滚动到日志底部
+        }
+
+        function closeLogPopup() {
+            var popup = document.getElementById("logPopup");
+            popup.style.display = "none";
+        }
+
+		function clearLog() {
+			if (confirm("确定要清空日志吗？")) {
+				var xhr = new XMLHttpRequest();
+				xhr.open("POST", "/admin?mode=del-log", true);
+				xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+				xhr.send();
+				xhr.onload = function() {
+					if (xhr.status === 200) {
+						if (xhr.responseText.includes('清空日志成功')) {
+							document.getElementById("logContent").innerHTML = "";
+							alert('日志已清空');
+						} else {
+							alert('清空日志失败');
+						}
+					}
+				};
+			}
+		}
 		</script>
 	</head>
 	<body>
@@ -1397,14 +1524,25 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 				<option value="50">每页 50 项</option>
 				<option value="100">每页 100 项</option>
 			</select>
-		</div>
+			<!-- 悬浮按钮 -->
+    <button class="floating-btn" onclick="showLogPopup()">查看日志</button>
+    <!-- 日志弹出框 -->
+    <div id="logPopup" class="log-popup">
+        <button class="close-btn" onclick="closeLogPopup()">X</button>
+        <div class="log-content" id="logContent">
+            {{LOG_CONTENT}}
+        </div>
+        <div class="log-footer">
+            <button onclick="clearLog()">清空日志</button>
+        </div>
+    </div>     
 		<br><br><br>
 	</body>
 	</html>
 	`
-
+       pageContent := strings.ReplaceAll(adminTemplate, "{{LOG_CONTENT}}", logContent)
 	// 渲染页面
-	tmpl, err := template.New("admin").Parse(adminTemplate)
+	tmpl, err := template.New("admin").Parse(pageContent)
 	if err != nil {
 		http.Error(w, "无法解析模板", http.StatusInternalServerError)
 		return
@@ -1415,6 +1553,27 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 		http.Error(w, "无法渲染模板", http.StatusInternalServerError)
 		return
 	}
+}
+
+func setupLogging(logDir string) {
+    var logOutput io.Writer
+    if logDir != "" {
+        logFilePath := filepath.Join(logDir, "shortener.log")
+
+        // 创建 lumberjack.Logger 实例
+        logOutput = io.MultiWriter(&lumberjack.Logger{
+            Filename:   logFilePath,
+            MaxSize:    10, // MB
+            MaxBackups: 1,  // 保留3个旧日志文件
+            MaxAge:     28, // 保留日志文件的最大天数
+            Compress:   true, // 是否压缩旧日志
+        }, os.Stdout)
+    } else {
+        logOutput = os.Stdout
+    }
+
+    // 设置日志的输出目标
+    log.SetOutput(logOutput)
 }
 
 func main() {
@@ -1432,6 +1591,7 @@ func main() {
     // 使用flag包解析命令行参数
     flag.IntVar(&port, "p", 8080, "监听端口")
     flag.StringVar(&dataDir, "d", "", "指定数据存放目录路径")
+    flag.StringVar(&logDir, "log", "", "指定日志目录路径")
     flag.StringVar(&username, "u", "admin", "指定管理页面账户名")
     flag.StringVar(&password, "w", "admin", "指定管理页面密码")
     flag.BoolVar(&admin, "admin", false, "启用管理员模式")
@@ -1459,6 +1619,11 @@ func main() {
 	colorPrint(36, fmt.Sprintf("-d "))
 	colorPrint(34, fmt.Sprintf("[文件路径]"))
 	fmt.Println(" 指定数据存放的目录路径，默认当前程序路径的./short_data文件夹")
+	
+	fmt.Printf("  %s ", os.Args[0])
+	colorPrint(36, fmt.Sprintf("-log "))
+	colorPrint(34, fmt.Sprintf("[文件路径]"))
+	fmt.Println(" 启用日志，并指定日志存放的目录路径")
 	
 	fmt.Printf("  %s ", os.Args[0])
 	colorPrint(36, fmt.Sprintf("-admin "))
@@ -1518,7 +1683,8 @@ func main() {
             log.Fatalf("无法创建数据目录: %v", err)
         }
     }
-    
+    //设置日志处理文件
+    setupLogging(logDir)
     //初始统计数据文件
     dataFilePath := filepath.Join(dataDir, "short_data.json")
     initializeData(dataFilePath)
