@@ -281,6 +281,15 @@ func apiHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
             req.LongUrl = "http://" + req.LongUrl
         }
     }
+    if req.Type == "websocket" {
+      if strings.Contains(req.LongUrl, "http://") {
+         req.LongUrl = strings.Replace(req.LongUrl, "http://", "ws://", 1)
+      } else if strings.Contains(req.LongUrl, "https://") {
+         req.LongUrl = strings.Replace(req.LongUrl, "https://", "wss://", 1)
+      } else if !strings.HasPrefix(req.LongUrl, "ws://") && !strings.HasPrefix(req.LongUrl, "wss://") {
+         req.LongUrl = "ws://" + req.LongUrl
+      }
+    }
     // 生成文件路径
     filePath := filepath.Join(dataDir, req.ShortCode+".json")
 
@@ -618,6 +627,11 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 
     // 根据type值做相应处理
     switch apiReq.Type {
+    case "websocket":
+        // 如果是 WebSocket 请求，返回特定的头字段或响应体
+        w.Header().Set("Location",  apiReq.LongUrl)
+        w.WriteHeader(http.StatusMovedPermanently)
+        return
     case "link":
         http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
     case "html":
@@ -1348,6 +1362,7 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
                     input = document.createElement("select");
                     input.innerHTML = '<option value="link" ' + (cells[i].innerText === "link" ? "selected" : "") + '>链接</option>' +
                                         '<option value="text" ' + (cells[i].innerText === "text" ? "selected" : "") + '>文本</option>' +
+                                        '<option value="text" ' + (cells[i].innerText === "websocket" ? "selected" : "") + '>ws重定向</option>' +
                                         '<option value="html" ' + (cells[i].innerText === "html" ? "selected" : "") + '>网页</option>';
                 } else {
                     input = document.createElement("textarea");
