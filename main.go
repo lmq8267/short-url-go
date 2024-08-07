@@ -630,13 +630,8 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
                 // 如果没有前缀，则添加 ws://
                 apiReq.LongUrl = "ws://" + apiReq.LongUrl
             }
-            
-            w.Header().Set("Location", apiReq.LongUrl)
-            w.WriteHeader(http.StatusMovedPermanently)
-            return
-	} else {
-           http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
 	}
+        http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
     case "html":
         // 如果是 WebSocket 请求，返回特定的头字段或响应体
         if r.Header.Get("Upgrade") == "websocket" {
@@ -649,9 +644,7 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
                 apiReq.LongUrl = "ws://" + apiReq.LongUrl
             }
             
-            w.Header().Set("Location", apiReq.LongUrl)
-            w.WriteHeader(http.StatusMovedPermanently)
-            return
+            http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
         } else {
           w.Header().Set("Content-Type", "text/html; charset=utf-8")
           w.WriteHeader(http.StatusOK)
