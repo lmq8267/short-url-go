@@ -620,8 +620,8 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
     // 根据type值做相应处理
     switch apiReq.Type {
     case "link":
-	if r.Header.Get("Upgrade") == "websocket" {
-	   // 如果是 WebSocket 请求，返回特定的头字段或响应体
+        // 如果是 WebSocket 请求，返回特定的头字段或响应体
+        if r.Header.Get("Upgrade") == "websocket" {
 	   if strings.HasPrefix(apiReq.LongUrl, "http://") {
                 apiReq.LongUrl = "ws://" + strings.TrimPrefix(apiReq.LongUrl, "http://")
             } else if strings.HasPrefix(apiReq.LongUrl, "https://") {
@@ -630,6 +630,7 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
                 // 如果没有前缀，则添加 ws://
                 apiReq.LongUrl = "ws://" + apiReq.LongUrl
             }
+            
             w.Header().Set("Location", apiReq.LongUrl)
             w.WriteHeader(http.StatusMovedPermanently)
             return
@@ -637,9 +638,25 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
            http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
 	}
     case "html":
-        w.Header().Set("Content-Type", "text/html; charset=utf-8")
-        w.WriteHeader(http.StatusOK)
-        w.Write([]byte(apiReq.LongUrl))
+        // 如果是 WebSocket 请求，返回特定的头字段或响应体
+        if r.Header.Get("Upgrade") == "websocket" {
+           if strings.HasPrefix(apiReq.LongUrl, "http://") {
+                apiReq.LongUrl = "ws://" + strings.TrimPrefix(apiReq.LongUrl, "http://")
+            } else if strings.HasPrefix(apiReq.LongUrl, "https://") {
+                apiReq.LongUrl = "wss://" + strings.TrimPrefix(apiReq.LongUrl, "https://")
+            } else if !strings.HasPrefix(apiReq.LongUrl, "ws://") && !strings.HasPrefix(apiReq.LongUrl, "wss://") {
+                // 如果没有前缀，则添加 ws://
+                apiReq.LongUrl = "ws://" + apiReq.LongUrl
+            }
+            
+            w.Header().Set("Location", apiReq.LongUrl)
+            w.WriteHeader(http.StatusMovedPermanently)
+            return
+        } else {
+          w.Header().Set("Content-Type", "text/html; charset=utf-8")
+          w.WriteHeader(http.StatusOK)
+          w.Write([]byte(apiReq.LongUrl))
+        }
     case "text":
         htmlContent, err := content.ReadFile("static/text.html")
         if err != nil {
