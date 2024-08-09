@@ -650,6 +650,16 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
           w.WriteHeader(http.StatusOK)
           w.Write([]byte(apiReq.LongUrl))
         }
+    case "page":
+        htmlContent, err := content.ReadFile("static/page.html")
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        responseHtml := strings.Replace(string(htmlContent), "{长内容}", apiReq.LongUrl, -1)
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte(responseHtml))
     case "text":
         w.Header().Set("Content-Type", "text/plain; charset=utf-8")
         w.WriteHeader(http.StatusOK)
@@ -1366,9 +1376,10 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
                                         '<option value="false" ' + (cells[i].innerText === "false" ? "selected" : "") + '>否</option>';
                 } else if (dataField === "Type") {
                     input = document.createElement("select");
-                    input.innerHTML = '<option value="link" ' + (cells[i].innerText === "link" ? "selected" : "") + '>链接</option>' +
-                                        '<option value="text" ' + (cells[i].innerText === "text" ? "selected" : "") + '>文本</option>' +
-                                        '<option value="html" ' + (cells[i].innerText === "html" ? "selected" : "") + '>网页</option>';
+                    input.innerHTML = '<option value="link" ' + (cells[i].innerText === "link" ? "selected" : "") + '>缩短链接</option>' +
+                                        '<option value="html" ' + (cells[i].innerText === "html" ? "selected" : "") + '>html网页</option>' +
+                                        '<option value="page" ' + (cells[i].innerText === "page" ? "selected" : "") + '>网页文本</option>' +
+                                        '<option value="text" ' + (cells[i].innerText === "text" ? "selected" : "") + '>txt文本</option>';
                 } else {
                     input = document.createElement("textarea");
                     input.value = cells[i].innerText;
