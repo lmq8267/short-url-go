@@ -651,15 +651,9 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
           w.Write([]byte(apiReq.LongUrl))
         }
     case "text":
-        htmlContent, err := content.ReadFile("static/text.html")
-        if err != nil {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-        responseHtml := strings.Replace(string(htmlContent), "{长内容}", apiReq.LongUrl, -1)
-        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.Header().Set("Content-Type", "text/plain; charset=utf-8")
         w.WriteHeader(http.StatusOK)
-        w.Write([]byte(responseHtml))
+        w.Write([]byte(apiReq.LongUrl))
     default:
         http.Error(w, "Forbidden", http.StatusForbidden)
     }
