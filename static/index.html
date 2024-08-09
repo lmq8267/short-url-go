@@ -6,6 +6,7 @@
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.2.3/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.2.3/js/bootstrap.min.js"></script>
     <script async src="https://umami.aiayw.com/script.js" data-website-id="1b4b644e-8552-452e-8c58-f6efb03ba42b"></script>
+    <script src="https://fastly.jsdelivr.net/gh/lmq8267/live2d-widget@master/autoload.js"></script>
     <link rel="icon"
           href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔗</text></svg>">
     <title>简短分享 - 长网址缩短，文本分享，Html单页分享</title>
@@ -202,8 +203,9 @@
                         <label class="input-group-text" for="type">请选择功能</label>
                         <select class="form-control" id="type" name="type">
                             <option value="link">缩短链接</option>
-                            <option value="text">显示文本</option>
                             <option value="html">HTML网页</option>
+                            <option value="text">txt文本</option>
+                            <option value="page">网页文本</option>
                         </select>
                     </div>
 
@@ -221,8 +223,7 @@
                        <label class="input-group-text" for="expiration">有效期</label>
                        <select class="form-select" id="expiration" name="expiration" onchange="handleExpirationChange()">
                        <option value="">永久有效</option>
-                       <option value="1" selected>1分钟</option>
-                       <option value="5">5分钟</option>
+                       <option value="5" selected>5分钟</option>
                        <option value="10">10分钟</option>
                        <option value="30">30分钟</option>
                        <option value="60">1小时</option>
@@ -230,6 +231,7 @@
                        <option value="1440">1天</option>
                        <option value="10080">1周</option>
                        <option value="43200">1个月</option>
+                       <option value="31536000">1年</option>
                        <option value="custom">自定义</option>
                        </select>
                        <input type="number" class="form-control" id="expirationCustom" placeholder="请输入分钟数" style="display:none;">
@@ -257,6 +259,7 @@
                     <div class="alert alert-success">
                         <p class="lead">生成成功！</p>
                         <p class="lead" id="shortUrl"></p>
+                        
                         <button class="btn btn-success" onclick="openShortUrl()">打开短链接</button>
                         <button class="btn btn-success" onclick="copyShortUrl()">复制短链接</button>
                     </div>
@@ -384,7 +387,7 @@
                 document.body.removeChild(textArea);
             }
         }
-    function openShortUrl() {
+   function openShortUrl() {
         var shortUrl = document.getElementById("shortUrl").innerText;
         window.open(shortUrl, '_blank');
     }
