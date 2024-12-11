@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/dc956887-0a3e-4fb7-8651-d0b60fb56838)# short-url 缩短链接服务
+# short-url 缩短链接服务
 <p align="center">
 <a href="https://github.com/lmq8267/short-url-go/releases"><img src="https://img.shields.io/github/downloads/lmq8267/short-url-go/total"/></a
 <a href="https://github.com/lmq8267/short-url-go/graphs/contributors"><img src="https://img.shields.io/github/contributors-anon/lmq8267/short-url-go"/></a
