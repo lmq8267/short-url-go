@@ -1,4 +1,4 @@
-# short-url 缩短链接服务
+![image](https://github.com/user-attachments/assets/dc956887-0a3e-4fb7-8651-d0b60fb56838)# short-url 缩短链接服务
 <p align="center">
 <a href="https://github.com/lmq8267/short-url-go/releases"><img src="https://img.shields.io/github/downloads/lmq8267/short-url-go/total"/></a
 <a href="https://github.com/lmq8267/short-url-go/graphs/contributors"><img src="https://img.shields.io/github/contributors-anon/lmq8267/short-url-go"/></a
@@ -63,6 +63,38 @@ curl -k 'http://你的域名地址/api' -X POST -d '{ \
 `expiration` 表示有效期（分钟） 整数，留空表示永久有效<br>
 `burn_after_reading` 表示是否启用阅后即焚 `false`关闭 `true`开启<br>
 `password` 表示后缀密码，下次更新这个后缀的内容需要使用相同的密码才能更新<br>
+
+我的ifname嵌套脚本，打开只显示域名不会总是跳转IP（只能域名http跳转IP的http 不能跨域）
+```bash
+#!/bin/bash
+
+#IP地址
+ip="110.123.146.27:51018"
+
+#后缀
+hz="caddy888"
+
+#密码
+mm="password"
+
+# 构建单行 JSON 数据不能换行
+json_data=$(cat <<EOF
+{"longUrl":"<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\"><title>/</title><style>body, html {margin: 0; padding: 0; height: 100%; overflow: hidden;} iframe {width: 100%; height: 100%; border: none;}</style></head><body><iframe src=\"http://$ip\"></iframe></body></html>","shortCode":"$hz","password":"$mm","expiration":"","burn_after_reading":"false","type":"html"}
+EOF
+)
+
+# 发送 POST 请求并获取返回值
+status=$(curl -Lk 'https://域名/api' -X POST \
+-H 'Content-Type: application/json' \
+-d "$json_data")
+
+# 检查返回的 JSON 数据是否包含预期内容
+if [[ "$status" == *"\"type\":\"html\""* && "$status" == *"\"short_url\":\"http://域名/${hz}\""* && "$status" == *"\"URL_NAME\":\"${hz}\""* ]]; then
+  echo "更新${ip}记录成功！"
+else
+  echo "失败！返回的数据：$status"
+fi
+```
 
 ### Docker
 ```bash
