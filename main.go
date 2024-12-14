@@ -246,7 +246,14 @@ func apiHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
         http.Error(w, err.Error(), http.StatusBadRequest)
         return
     }
-
+    // 判断后缀是否包含 "/"
+    if strings.Contains(req.ShortCode, "/") {
+        errMsg := map[string]string{"error": "错误！后缀里不能包含 / 符号。"}
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(errMsg)
+        return
+    }
     // 如果没有后缀就随机生成8位字符的后缀
     if req.ShortCode == "" {
         req.ShortCode = generateRandomString(8)
@@ -276,7 +283,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
         return
     }
     // 判断请求里的type的值
-    if req.Type == "link" {
+    if req.Type == "link" || req.Type == "iframe" {
         if !strings.HasPrefix(req.LongUrl, "http://") && !strings.HasPrefix(req.LongUrl, "https://") {
             req.LongUrl = "http://" + req.LongUrl
         }
@@ -481,7 +488,15 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
         http.Error(w, err.Error(), http.StatusBadRequest)
         return
     }
-
+    
+     // 判断路径中是否包含 "/"
+    var extra string // 定义用于存储 "/" 后内容的新变量
+    if idx := strings.Index(path, "/"); idx != -1 {
+        // 如果包含 "/", 截取 "/" 前后的内容
+        extra = path[idx+1:] // "/" 后面的内容
+        path = path[:idx]    // "/" 前面的内容
+    }
+    
     // 如果路径为空或者在 dataDir 目录中没有对应的 .json 文件，则重定向到根目录
     filePath := filepath.Join(dataDir, path+".json")
     _, err = os.Stat(filePath)
@@ -620,6 +635,20 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
     // 根据type值做相应处理
     switch apiReq.Type {
     case "link":
+    	// 判断 extra 是否为空
+    	if extra != "" {
+        // 检查 apiReq.LongUrl 是否以 '/' 结尾，或 extra 是否以 '/' 开头
+        if strings.HasSuffix(apiReq.LongUrl, "/") && strings.HasPrefix(extra, "/") {
+            // 如果两者都有 '/'，移除 extra 的前导 '/'
+            extra = strings.TrimPrefix(extra, "/")
+        } else if !strings.HasSuffix(apiReq.LongUrl, "/") && !strings.HasPrefix(extra, "/") {
+            // 如果两者都没有 '/'，在两者之间添加一个 '/'
+            extra = "/" + extra
+        }
+
+        // 拼接 extra 到 apiReq.LongUrl
+           apiReq.LongUrl += extra
+    	}
         // 如果是 WebSocket 请求，返回特定的头字段或响应体
         if r.Header.Get("Upgrade") == "websocket" {
 	   if strings.HasPrefix(apiReq.LongUrl, "http://") {
@@ -657,6 +686,31 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
             return
         }
         responseHtml := strings.Replace(string(htmlContent), "{长内容}", apiReq.LongUrl, -1)
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte(responseHtml))
+    case "iframe":
+        htmlContent, err := content.ReadFile("static/iframe.html")
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        if extra != "" {
+        	if strings.HasSuffix(apiReq.LongUrl, "/") && strings.HasPrefix(extra, "/") {
+            		extra = strings.TrimPrefix(extra, "/")
+        	} else if !strings.HasSuffix(apiReq.LongUrl, "/") && !strings.HasPrefix(extra, "/") {
+            		extra = "/" + extra
+        	}
+           	apiReq.LongUrl += extra
+    	}
+    	// 判断是否为 curl 或 wget 请求
+    	userAgent := r.Header.Get("User-Agent")
+    	if strings.Contains(userAgent, "curl") || strings.Contains(userAgent, "wget") {
+        	// 如果是 curl 或 wget 请求，则直接重定向
+        	http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
+        	return
+    	}
+        responseHtml := strings.Replace(string(htmlContent), "{套娃地址}", apiReq.LongUrl, -1)
         w.Header().Set("Content-Type", "text/html; charset=utf-8")
         w.WriteHeader(http.StatusOK)
         w.Write([]byte(responseHtml))
@@ -928,7 +982,7 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 	lockoutData.RLock()
 	defer lockoutData.RUnlock()
 	if time.Now().Before(lockoutData.lockout) {
-		http.Error(w, "连续输错次数太多啦，请休息一会儿后再试吧！", http.StatusForbidden)
+		http.Error(w, "错误：连续输错次数太多啦，请休息一会儿后再试吧！", http.StatusForbidden)
 		return
 	}
 	//处理清理日志请求
@@ -937,12 +991,12 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 			logFile := fmt.Sprintf("%s/shortener.log", logDir)
 			err := os.Truncate(logFile, 0)
 			if err != nil {
-				http.Error(w, "无法清空日志", http.StatusInternalServerError)
+				http.Error(w, "错误：无法清空日志", http.StatusInternalServerError)
 				return
 			}
 			fmt.Fprintln(w, "清空日志成功")
 		} else {
-			http.Error(w, "日志目录未指定", http.StatusInternalServerError)
+			http.Error(w, "错误：日志目录未指定", http.StatusInternalServerError)
 		}
 	}
 	
@@ -950,7 +1004,7 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 	if r.Method == http.MethodPost && r.FormValue("mode") == "delete" {
 		shortCode := r.FormValue("shortcode")
 		if shortCode == "" {
-			http.Error(w, "缺少必要的参数", http.StatusBadRequest)
+			http.Error(w, "错误：缺少必要的参数", http.StatusBadRequest)
 			return
 		}
 
@@ -976,17 +1030,21 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		decoder := json.NewDecoder(r.Body)
 		err := decoder.Decode(&data)
 		if err != nil {
-			http.Error(w, "无效的请求数据", http.StatusBadRequest)
+			http.Error(w, "错误：无效的请求数据", http.StatusBadRequest)
 			return
 		}
 
 		// 使用 ShortCode 作为文件名
 		shortCode := data.ShortCode
 		if shortCode == "" {
-			http.Error(w, "缺少 ShortCode", http.StatusBadRequest)
+			http.Error(w, "错误：缺少 ShortCode", http.StatusBadRequest)
 			return
 		}
-
+		// 判断 ShortCode 是否为单个 "/" 或包含 "/"
+    		if shortCode == "/" || strings.Contains(shortCode, "/") {
+        		http.Error(w, "错误：后缀里不能包含 / 符号", http.StatusBadRequest)
+        		return
+    		}
 		// 构建要更新的文件路径
 		filePath := filepath.Join(dataDir, shortCode+".json")
 
@@ -994,23 +1052,23 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		_, err = os.Stat(filePath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				http.Error(w, "文件不存在", http.StatusNotFound)
+				http.Error(w, "错误：文件不存在", http.StatusNotFound)
 				return
 			}
-			http.Error(w, "无法读取文件", http.StatusInternalServerError)
+			http.Error(w, "错误：无法读取文件", http.StatusInternalServerError)
 			return
 		}
 
 		// 写入新数据到文件
 		fileContent, err := json.MarshalIndent(data, "", "  ")
 		if err != nil {
-			http.Error(w, "无法序列化数据", http.StatusInternalServerError)
+			http.Error(w, "错误：无法序列化数据", http.StatusInternalServerError)
 			return
 		}
 
 		err = os.WriteFile(filePath, fileContent, 0644)
 		if err != nil {
-			http.Error(w, "无法写入文件", http.StatusInternalServerError)
+			http.Error(w, "错误：无法写入文件", http.StatusInternalServerError)
 			return
 		}
 
@@ -1379,6 +1437,7 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
                     input.innerHTML = '<option value="link" ' + (cells[i].innerText === "link" ? "selected" : "") + '>缩短链接</option>' +
                                         '<option value="html" ' + (cells[i].innerText === "html" ? "selected" : "") + '>html网页</option>' +
                                         '<option value="page" ' + (cells[i].innerText === "page" ? "selected" : "") + '>网页文本</option>' +
+                                        '<option value="iframe" ' + (cells[i].innerText === "iframe" ? "selected" : "") + '>iframe网页</option>' +
                                         '<option value="text" ' + (cells[i].innerText === "text" ? "selected" : "") + '>txt文本</option>';
                 } else {
                     input = document.createElement("textarea");
