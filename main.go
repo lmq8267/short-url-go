@@ -703,12 +703,7 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
         	}
            	apiReq.LongUrl += extra
     	}
-	// 动态获取当前页面的完整 URL，包括协议
-    	scheme := "http"
-    	if r.TLS != nil { // 判断是否为 HTTPS
-        	scheme = "https"
-    	}
-    	currentPage := fmt.Sprintf("%s://%s", scheme, r.Host)
+	
     	// 判断是否为 curl 或 wget 请求
     	userAgent := r.Header.Get("User-Agent")
     	if strings.Contains(userAgent, "curl") || strings.Contains(userAgent, "wget") {
@@ -717,7 +712,6 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
         	return
     	}
         responseHtml := strings.Replace(string(htmlContent), "{套娃地址}", apiReq.LongUrl, -1)
-	responseHtml = strings.Replace(responseHtml, "{当前页面地址}", currentPage, -1)
         w.Header().Set("Content-Type", "text/html; charset=utf-8")
         w.WriteHeader(http.StatusOK)
         w.Write([]byte(responseHtml))
