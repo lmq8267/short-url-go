@@ -21,35 +21,32 @@
     </style>
     <script>
         // 禁用 F12 和调试工具
-        document.addEventListener('keydown', function (event) {
-            if (event.key === "F12" || 
-                (event.ctrlKey && event.shiftKey && ['I', 'J', 'C'].includes(event.key)) || 
-                (event.ctrlKey && event.key === 'U')) {
-                event.preventDefault();
-                window.location.href = "about:blank"; // 跳转到空白页面
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "F12" || (e.ctrlKey && e.shiftKey && e.key === "I")) {
+                e.preventDefault();
+                window.location.href = "about:blank"; // 跳转到空白页
             }
         });
 
-        // 定时检测是否启用了调试工具
-        setInterval(function () {
-            const before = performance.now();
-            debugger; // 强制触发调试
-            const after = performance.now();
-            if (after - before > 100) {
-                window.location.href = "about:blank"; // 跳转到空白页面
-            }
-        }, 1000);
+        // 禁止通过调试工具覆盖的方法
+        (function () {
+            const devtoolsCheck = () => {
+                if (window.outerWidth - window.innerWidth > 100 || window.outerHeight - window.innerHeight > 100) {
+                    window.location.href = "about:blank";
+                }
+            };
+            window.onresize = devtoolsCheck;
+            setInterval(devtoolsCheck, 1000); // 每秒检查一次
+        })();
 
-        // 动态替换右键复制的链接地址
-        document.addEventListener('contextmenu', function (event) {
-            const iframe = document.querySelector('iframe');
-            if (iframe) {
-                const currentPage = "{当前页面地址}"; // 后端注入的当前页面地址
-                const originalUrl = iframe.src; // 获取 iframe 的地址
-                const relativePath = originalUrl.replace(/^https?:\/\/[^\/]+/, ""); // 去掉原始地址的前缀
-                navigator.clipboard.writeText(currentPage + relativePath).catch(err => {
-                    console.error("无法复制到剪贴板:", err);
-                });
+        // 替换右键链接为当前页面链接
+        document.addEventListener("contextmenu", function (e) {
+            const iframe = document.querySelector("iframe");
+            if (iframe && iframe.src) {
+                const currentOrigin = window.location.origin; // 当前页面的协议 + 域名
+                const iframePath = iframe.src.replace(/^https?:\/\/[^\/]+/, ""); // 提取 iframe 地址的路径
+                const newUrl = currentOrigin + iframePath;
+                navigator.clipboard.writeText(newUrl).catch(err => console.error("复制失败:", err)); // 复制到剪贴板
             }
         });
     </script>
