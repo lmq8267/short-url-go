@@ -19,19 +19,6 @@
             border: none; /* 移除边框 */
         }
     </style>
-   <script>
-        document.addEventListener("contextmenu", function (e) {
-            const iframe = document.querySelector("iframe"); // 获取固定的 iframe
-            if (iframe && iframe.src) {
-                const currentOrigin = window.location.origin; // 当前页面的协议 + 域名/IP + 端口
-                const iframePath = iframe.src.replace(/^https?:\/\/[^\/]+/, ""); // 提取 iframe 的路径部分
-                const newUrl = currentOrigin + iframePath; // 拼接新的链接
-
-                // 模拟右键“复制链接地址”行为
-                navigator.clipboard.writeText(newUrl).catch(err => console.error("复制失败:", err));
-            }
-        });
-    </script>
 </head>
 <body>
     <!-- 嵌入目标地址 -->
