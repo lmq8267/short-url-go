@@ -1713,9 +1713,9 @@ func generateSVG(clientIP string) string {
     <path d="
         M%d 0 
         h%d 
-        a5 5 0 0 1 5 5 
+        a2 2 0 0 1 5 5 
         v10 
-        a5 5 0 0 1 -5 5 
+        a2 2 0 0 1 -5 5 
         h-%d 
         v-20 
         z" fill="#95c10d" />
