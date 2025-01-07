@@ -1667,6 +1667,48 @@ func setupLogging(logDir string) {
     log.SetOutput(logOutput)
 }
 
+// 获取客户端IP地址
+func getIP(r *http.Request) string {
+    // 获取客户端的真实IP（你可以根据实际需求调整获取方式）
+    clientIP := r.Header.Get("X-Forwarded-For")
+    if clientIP == "" {
+        clientIP = r.RemoteAddr
+    }
+    return clientIP
+}
+
+// 生成SVG内容
+func generateSVG(clientIP string) string {
+    // 使用估算值，每个字符宽度为 5px（你可以根据实际需求调整）
+    const charWidth = 5
+    
+    // 计算文本宽度，不能在常量表达式中使用len(clientIP)
+    textWidth := len(clientIP) * charWidth  // 计算文本宽度
+
+    // 右边矩形宽度比文本宽度多一些，保证有适当的间隔
+    rectWidth := textWidth + 40 // 右边矩形的宽度
+
+    // 调整左边矩形的宽度，使其比原来小一些
+    leftRectWidth := 30 // 左边矩形宽度减少至 30（你可以根据实际需求调整）
+
+    // 确保宽度是计算出来的矩形总宽度
+    totalWidth := leftRectWidth + rectWidth
+
+    // 使用 path 元素代替 rect 绘制矩形
+    svgContent := fmt.Sprintf(`
+<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20">
+    <!-- 左边固定部分：背景 #515151，宽度调整为 leftRectWidth -->
+    <path d="M0 0 h%d a5 5 0 0 1 5 5 v10 a5 5 0 0 1 -5 5 h-%d v-20 z" fill="#515151" />
+    <text x="10" y="15" font-size="12" fill="#ffffff">IP</text>
+
+    <!-- 右边动态部分：背景 #95c10d -->
+    <path d="M%d 0 h%d a5 5 0 0 1 5 5 v10 a5 5 0 0 1 -5 5 h-%d v-20 z" fill="#95c10d" />
+    <text x="%d" y="15" font-size="12" fill="#ffffff">%s</text>
+</svg>`, totalWidth, leftRectWidth, leftRectWidth, leftRectWidth, rectWidth-5, rectWidth-5, leftRectWidth+10, clientIP)
+
+    return svgContent
+}
+
 func main() {
     
     var (
@@ -1786,8 +1828,26 @@ func main() {
         // 处理/api
         apiHandler(w, r, dataDir)
     } else if r.URL.Path == "/" {
+        // 获取客户端的IP地址
+        clientIP := getIP(r)
+        
+        // 获取请求的id参数
+        id := r.URL.Query().Get("id")
+
+        if id == "svg" {
+            // 如果id是svg，生成SVG图像并返回
+            svgContent := generateSVG(clientIP)
+            w.Header().Set("Content-Type", "image/svg+xml")
+            w.Header().Set("Cache-Control", "no-cache")
+            w.Write([]byte(svgContent))
+        } else if id == "ip" {
+            // 如果id是ip，直接返回IP地址
+            w.Header().Set("Content-Type", "text/plain")
+            w.Write([]byte(clientIP))
+        } else if id == "" {  
         // 处理主页
         indexHandler(w, r)
+        }
     } else if r.URL.Path == "/admin" && admin {
 		if !isAuthenticated(r) {
 			// 如果未认证，重定向到认证页面
