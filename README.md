@@ -10,10 +10,12 @@
 <a href="GitHub repo size"><img src="https://img.shields.io/github/repo-size/lmq8267/short-url-go?color=red&style=flat-square"/></a>
 <a href="https://github.com/lmq8267/short-url-go/actions?query=workflow%3ABuild"><img src="https://img.shields.io/github/actions/workflow/status/lmq8267/short-url-go/build.yml?branch=main" alt="Build status"/></a>
 <a href="https://hub.docker.com/r/lmq8267/shortener"><img src="https://img.shields.io/docker/pulls/lmq8267/shortener?color=%2348BB78&logo=docker&label=pulls" alt="Downloads"/></a>
-
+ 
+ **仓库访问数**：![hello](https://views.whatilearened.today/views/github/lmq8267/short-url-go.svg) ![](https://tt.cnqq.cloudns.ch/?id=svg)
+ 
 </div>
 
-> **访问数**：![hello](https://views.whatilearened.today/views/github/lmq8267/short-url-go.svg) ![](https://tt.cnqq.cloudns.ch/?id=svg)
+
 
  纯AI的产的 <br>
 ### 预览
