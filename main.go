@@ -1694,17 +1694,16 @@ func generateSVG(clientIP string) string {
     // 确保宽度是计算出来的矩形总宽度
     totalWidth := leftRectWidth + rectWidth
 
-    // 生成 SVG 内容
     svgContent := fmt.Sprintf(`
 <svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20">
-    <!-- 左边固定部分：背景 #515151，宽度调整为 leftRectWidth，包含左侧圆角 -->
+    <!-- 左边固定部分：背景 #515151，宽度调整为 leftRectWidth，包含左侧小圆角 -->
     <path d="
-        M5 0 
+        M3 0 
         h%d 
         v20 
         h-%d 
         a3 3 0 0 1 -3 -3 
-        v-10 
+        v-14 
         a3 3 0 0 1 3 -3 
         z" fill="#515151" />
     <text x="10" y="15" font-size="12" fill="#ffffff">IP</text>
@@ -1714,13 +1713,13 @@ func generateSVG(clientIP string) string {
         M%d 0 
         h%d 
         a3 3 0 0 1 3 3 
-        v10 
+        v14 
         a3 3 0 0 1 -3 3 
         h-%d 
         v-20 
         z" fill="#95c10d" />
     <text x="%d" y="15" font-size="12" fill="#ffffff">%s</text>
-</svg>`, totalWidth, leftRectWidth-5, leftRectWidth-5, leftRectWidth, rectWidth-5, rectWidth-5, leftRectWidth+10, clientIP)
+</svg>`, totalWidth, leftRectWidth-3, leftRectWidth-3, leftRectWidth, rectWidth-3, rectWidth-3, leftRectWidth+10, clientIP)
 
     return svgContent
 }
