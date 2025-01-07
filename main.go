@@ -1703,9 +1703,9 @@ func generateSVG(clientIP string) string {
         h%d 
         v20 
         h-%d 
-        a5 5 0 0 1 -5 -5 
+        a3 3 0 0 1 -3 -3 
         v-10 
-        a5 5 0 0 1 5 -5 
+        a3 3 0 0 1 3 -3 
         z" fill="#515151" />
     <text x="10" y="15" font-size="12" fill="#ffffff">IP</text>
 
@@ -1713,9 +1713,9 @@ func generateSVG(clientIP string) string {
     <path d="
         M%d 0 
         h%d 
-        a2 2 0 0 1 5 5 
+        a3 3 0 0 1 3 3 
         v10 
-        a2 2 0 0 1 -5 5 
+        a3 3 0 0 1 -3 3 
         h-%d 
         v-20 
         z" fill="#95c10d" />
