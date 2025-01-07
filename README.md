@@ -11,8 +11,9 @@
 <a href="https://hub.docker.com/r/lmq8267/shortener"><img src="https://img.shields.io/docker/pulls/lmq8267/shortener?color=%2348BB78&logo=docker&label=pulls" alt="Downloads"/></a>
 </p>
 
-访问数：![hello](https://views.whatilearened.today/views/github/lmq8267/short-url-go.svg) ![](https://tt.cnqq.cloudns.ch/?id=svg)
-<br> 纯AI的产的 <br>
+> **访问数**：![hello](https://views.whatilearened.today/views/github/lmq8267/short-url-go.svg) ![](https://tt.cnqq.cloudns.ch/?id=svg)
+
+ 纯AI的产的 <br>
 ### 预览
 [tt.cnqq.cloudns.ch](https://tt.cnqq.cloudns.ch/)
 ![](./image/UI预览.png)
