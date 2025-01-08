@@ -7,6 +7,7 @@ import (
     "io/fs"
     "io/ioutil"
     "log"
+    "errors"
     "net"
     "net/http"
     "os"
@@ -21,7 +22,15 @@ import (
     "html/template"
     "sync"
     "io"
+    "regexp"
     "github.com/natefinch/lumberjack"
+    "github.com/zu1k/nali/pkg/geoip"
+    "github.com/zu1k/nali/pkg/ip2region"
+    "github.com/zu1k/nali/pkg/ipip"
+    "github.com/zu1k/nali/pkg/qqwry"
+    "github.com/zu1k/nali/pkg/cdn"
+    "github.com/zu1k/nali/pkg/zxipv6wry"
+    "github.com/zu1k/nali/pkg/ip2location"
 )
 
 //go:embed static/*
@@ -29,6 +38,7 @@ var content embed.FS
 
 var (
         dataDir string
+        dbDir string
         admin bool
         logDir string
 	// 错误尝试限制和锁定时间
@@ -47,6 +57,25 @@ var (
 	authCookieAge      = 10 * time.Minute // 认证 cookie 的有效期
 	ipCookieName       = "auth-ip"
 	ipCookieValue      = "" // 动态设置
+)
+
+// 定义查询实例
+var (
+	QQWryPath        string
+	ZXIPv6WryPath    string
+	GeoLite2CityPath string
+	IPIPFreePath     string
+	Ip2RegionPath    string
+	CdnPath          string
+	Ip2locationPath  string
+	
+	geoip2Instance    *geoip.GeoIP
+	qqwryInstance     *qqwry.QQwry
+	ipipInstance      *ipip.IPIPFree
+	ip2regionInstance *ip2region.Ip2Region
+	zxipv6wryInstance    *zxipv6wry.ZXwry
+	ip2locationInstance    *ip2location.IP2Location
+	cdnInstance    *cdn.CDN
 )
 
 func init() {
@@ -1673,8 +1702,150 @@ func getIP(r *http.Request) string {
     clientIP := r.Header.Get("X-Forwarded-For")
     if clientIP == "" {
         clientIP = r.RemoteAddr
+        // RemoteAddr包含端口，需要分割出IP部分
+	if strings.Contains(clientIP, ":") {
+		clientIP, _, _ = net.SplitHostPort(clientIP)
+	}
     }
     return clientIP
+}
+
+// 查询cdn
+func querycdn(ip string) (string, error) {
+	if cdnInstance == nil {
+		return "", errors.New("CDN服务不可用")
+	}
+	res, err := cdnInstance.Find(ip)
+	if err != nil {
+		return "", err
+	}
+	return res.String(), nil
+}
+
+// 查询ip2location
+func queryip2location(ip string) (string, error) {
+	if ip2locationInstance == nil {
+		return "", errors.New("ip2location服务不可用")
+	}
+	res, err := ip2locationInstance.Find(ip)
+	if err != nil {
+		return "", err
+	}
+	return res.String(), nil
+}
+
+// 查询zxipv6wry
+func queryzxipv6wry(ip string) (string, error) {
+	if zxipv6wryInstance == nil {
+		return "", errors.New("zxipv6wry服务不可用")
+	}
+	res, err := zxipv6wryInstance.Find(ip)
+	if err != nil {
+		return "", err
+	}
+	return res.String(), nil
+}
+
+// 查询Geoip2
+func queryGeoip2(ip string) (string, error) {
+	if geoip2Instance == nil {
+		return "", errors.New("GeoIP服务不可用")
+	}
+	res, err := geoip2Instance.Find(ip)
+	if err != nil {
+		return "", err
+	}
+	return res.String(), nil
+}
+
+// 查询QQwry
+func queryQQwry(ip string) (string, error) {
+	if qqwryInstance == nil {
+		return "", errors.New("QQWry服务不可用")
+	}
+	// 使用查询方法，假设有 Find 方法
+	res, err := qqwryInstance.Find(ip)
+	if err != nil {
+		return "", err
+	}
+	return res.String(), nil
+}
+
+// 查询IPIP
+func queryIPIP(ip string) (string, error) {
+	if ipipInstance == nil {
+		return "", errors.New("IPIP服务不可用")
+	}
+	// 使用查询方法，假设有 Find 方法
+	res, err := ipipInstance.Find(ip)
+	if err != nil {
+		return "", err
+	}
+	return res.String(), nil
+}
+
+// 查询Ip2Region
+func queryIp2Region(ip string) (string, error) {
+	if ip2regionInstance == nil {
+		return "", errors.New("Ip2Region服务不可用")
+	}
+	// 使用查询方法，假设有 Find 方法
+	res, err := ip2regionInstance.Find(ip)
+	if err != nil {
+		return "", err
+	}
+	return res.String(), nil
+}
+
+// 查询IP地址信息
+func queryIP(ip string) string {
+	var result string
+	var err error
+
+	// 依次调用各个查询方法
+	result, err = queryQQwry(ip)
+	if err == nil && result != "" {
+		fmt.Println("QQWry查询结果：", ip, result)
+		return ip + " " + result
+	}
+
+	result, err = queryGeoip2(ip)
+	if err == nil && result != "" {
+		fmt.Println("GeoIP查询结果：", ip, result)
+		return ip + " " + result
+	}
+
+	result, err = queryIp2Region(ip)
+	if err == nil && result != "" {
+		fmt.Println("Ip2Region查询结果：", ip, result)
+		return ip + " " + result
+	}
+
+	result, err = queryIPIP(ip)
+	if err == nil && result != "" {
+		fmt.Println("IPIP查询结果：", ip, result)
+		return ip + " " + result
+	}
+	
+	result, err = querycdn(ip)
+	if err == nil && result != "" {
+		fmt.Println("CDN查询结果：", ip, result)
+		return ip + " " + result
+	}
+	result, err = queryip2location(ip)
+	if err == nil && result != "" {
+		fmt.Println("IP2location查询结果：", ip, result)
+		return ip + " " + result
+	}
+	result, err = queryzxipv6wry(ip)
+	if err == nil && result != "" {
+		fmt.Println("Zxipv6wry查询结果：", ip, result)
+		return ip + " " + result
+	}
+
+	// 如果所有查询都没有结果，使用原IP
+	fmt.Println("未查询到IP区域信息，返回原始IP：", ip)
+	return ip
 }
 
 // 生成SVG内容
@@ -1686,7 +1857,7 @@ func generateSVG(clientIP string) string {
     textWidth := len(clientIP) * charWidth  // 计算文本宽度
 
     // 右边矩形宽度比文本宽度多一些，保证有适当的间隔
-    rectWidth := textWidth + 40 // 右边矩形的宽度
+    rectWidth := textWidth - 10 // 右边矩形的宽度
 
     // 调整左边矩形的宽度，使其比原来小一些
     leftRectWidth := 30 // 左边矩形宽度减少至 30（你可以根据实际需求调整）
@@ -1695,7 +1866,7 @@ func generateSVG(clientIP string) string {
     totalWidth := leftRectWidth + rectWidth
 
     svgContent := fmt.Sprintf(`
-<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20">
+<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20" viewBox="0 0 %d 20">
     <!-- 左边固定部分：背景 #515151，宽度调整为 leftRectWidth，包含左侧小圆角 -->
     <path d="
         M3 0 
@@ -1719,10 +1890,116 @@ func generateSVG(clientIP string) string {
         v-20 
         z" fill="#95c10d" />
     <text x="%d" y="15" font-size="12" fill="#ffffff">%s</text>
-</svg>`, totalWidth, leftRectWidth-3, leftRectWidth-3, leftRectWidth, rectWidth-3, rectWidth-3, leftRectWidth+10, clientIP)
+</svg>`, totalWidth, totalWidth, leftRectWidth-3, leftRectWidth-3, leftRectWidth, rectWidth-3, rectWidth-3, leftRectWidth+10, clientIP)
 
     return svgContent
 }
+func generateUASVG(uaInfo string) string {
+    // 使用估算值，每个字符宽度为 5px（你可以根据实际需求调整）
+    const charWidth = 6
+    fmt.Println("UA标识：", uaInfo)
+    // 计算文本宽度，不能在常量表达式中使用len(UAInfo)
+    textWidth := len(uaInfo) * charWidth  // 计算文本宽度
+
+    // 右边矩形宽度比文本宽度多一些，保证有适当的间隔
+    rectWidth := textWidth + 30 // 右边矩形的宽度
+
+    // 调整左边矩形的宽度，使其比原来小一些
+    leftRectWidth := 40 // 左边矩形宽度减少至 30（你可以根据实际需求调整）
+
+    // 确保宽度是计算出来的矩形总宽度
+    totalWidth := leftRectWidth + rectWidth
+
+    svgContent := fmt.Sprintf(`
+<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20" viewBox="0 0 %d 20">
+    <!-- 左边固定部分：背景 #515151，宽度调整为 leftRectWidth，包含左侧小圆角 -->
+    <path d="
+        M3 0 
+        h%d 
+        v20 
+        h-%d 
+        a3 3 0 0 1 -3 -3 
+        v-14 
+        a3 3 0 0 1 3 -3 
+        z" fill="#515151" />
+    <text x="10" y="15" font-size="12" fill="#ffffff">UA</text>
+
+    <!-- 右边动态部分：背景 #95c10d -->
+    <path d="
+        M%d 0 
+        h%d 
+        a3 3 0 0 1 3 3 
+        v14 
+        a3 3 0 0 1 -3 3 
+        h-%d 
+        v-20 
+        z" fill="#95c10d" />
+    <text x="%d" y="15" font-size="12" fill="#ffffff">%s</text>
+</svg>`, totalWidth, totalWidth, leftRectWidth-3, leftRectWidth-3, leftRectWidth, rectWidth-3, rectWidth-3, leftRectWidth+10, uaInfo)
+
+    return svgContent
+}
+// 判断用户代理并获取操作系统和浏览器信息
+func getUAInfo(userAgent string) (string, string) {
+	// 操作系统信息提取
+	osPatterns := []struct {
+		Name    string
+		Pattern string
+	}{
+		{"Windows 10", `Windows NT 10\.0`},
+		{"Windows 8.1", `Windows NT 6\.3`},
+		{"Windows 8", `Windows NT 6\.2`},
+		{"Windows 7", `Windows NT 6\.1`},
+		{"Windows Vista", `Windows NT 6\.0`},
+		{"Windows XP", `Windows NT 5\.1|Windows XP`},
+		{"Mac OS X", `Mac OS X ([\d_\.]+)`},
+		{"iPhone", `iPhone OS ([\d_\.]+)`},
+		{"iPad", `iPad.*CPU OS ([\d_\.]+)`},
+		{"Android", `Android ([\d\.]+)`},
+		{"Linux", `Linux`},
+	}
+
+	operatingSystem := "未知操作系统"
+	for _, os := range osPatterns {
+		re := regexp.MustCompile(os.Pattern)
+		match := re.FindStringSubmatch(userAgent)
+		if len(match) > 0 {
+			if len(match) > 1 {
+				operatingSystem = fmt.Sprintf("%s %s", os.Name, match[1])
+			} else {
+				operatingSystem = os.Name
+			}
+			break
+		}
+	}
+
+	// 浏览器信息提取
+	browserPatterns := []struct {
+		Name    string
+		Pattern string
+	}{
+		{"Firefox", `Firefox/([\d\.]+)`},
+		{"Chrome", `Chrome/([\d\.]+)`},
+		{"Safari", `Safari/([\d\.]+)`},
+		{"Edge", `Edg/([\d\.]+)`},
+		{"IE", `MSIE ([\d\.]+)`},
+		{"VivoBrowser", `VivoBrowser/([\d\.]+)`},
+		{"Opera", `OPR/([\d\.]+)`},
+	}
+
+	browser := "未知浏览器"
+	for _, br := range browserPatterns {
+		re := regexp.MustCompile(br.Pattern)
+		match := re.FindStringSubmatch(userAgent)
+		if len(match) > 0 {
+			browser = fmt.Sprintf("%s %s", br.Name, match[1])
+			break
+		}
+	}
+
+	return operatingSystem, browser
+}
+
 
 func main() {
     
@@ -1739,6 +2016,7 @@ func main() {
     // 使用flag包解析命令行参数
     flag.IntVar(&port, "p", 8080, "监听端口")
     flag.StringVar(&dataDir, "d", "", "指定数据存放目录路径")
+    flag.StringVar(&dbDir, "db", "", "指定IP地址离线数据存放目录路径")
     flag.StringVar(&logDir, "log", "", "指定日志目录路径")
     flag.StringVar(&username, "u", "admin", "指定管理页面账户名")
     flag.StringVar(&password, "w", "admin", "指定管理页面密码")
@@ -1767,6 +2045,11 @@ func main() {
 	colorPrint(36, fmt.Sprintf("-d "))
 	colorPrint(34, fmt.Sprintf("[文件路径]"))
 	fmt.Println(" 指定数据存放的目录路径，默认当前程序路径的./short_data文件夹")
+	
+	fmt.Printf("  %s ", os.Args[0])
+	colorPrint(36, fmt.Sprintf("-db "))
+	colorPrint(34, fmt.Sprintf("[文件路径]"))
+	fmt.Println(" 指定IP地址离线数据存放的目录路径，默认/tmp文件夹")
 	
 	fmt.Printf("  %s ", os.Args[0])
 	colorPrint(36, fmt.Sprintf("-log "))
@@ -1825,6 +2108,37 @@ func main() {
         dataDir = filepath.Join(filepath.Dir(exePath), "short_data")
     }
 
+    // 获取IP离线数据存放目录
+    if dbDir == "" {
+        dbDir = "/tmp" // 默认路径为 /tmp
+    }
+    if _, err := os.Stat(dbDir); os.IsNotExist(err) {
+    err := os.MkdirAll(dbDir, 0755)
+    if err != nil {
+        fmt.Println("无法创建IP离线数据存放目录:", err)
+    }
+    }
+    // 如果 dbDir 最后没有 /，则加上 /
+    if !strings.HasSuffix(dbDir, "/") {
+	dbDir = dbDir + "/"
+    }
+    QQWryPath        = dbDir + "qqwry.dat"
+    ZXIPv6WryPath    = dbDir + "zxipv6wry.db"
+    GeoLite2CityPath = dbDir + "GeoLite2-City.mmdb"
+    IPIPFreePath     = dbDir + "ipipfree.ipdb"
+    Ip2RegionPath    = dbDir + "ip2region.xdb"
+    CdnPath    = dbDir + "cdn.yml"
+    Ip2locationPath = dbDir + "IP2LOCATION-LITE-DB3.IPV6.BIN"
+    
+    // 初始化各个查询实例
+	geoip2Instance, _ = geoip.NewGeoIP(GeoLite2CityPath)
+	qqwryInstance, _ = qqwry.NewQQwry(QQWryPath)
+	ipipInstance, _ = ipip.NewIPIP(IPIPFreePath)
+	ip2regionInstance, _ = ip2region.NewIp2Region(Ip2RegionPath)
+	zxipv6wryInstance, _ = zxipv6wry.NewZXwry(ZXIPv6WryPath)
+	ip2locationInstance, _ = ip2location.NewIP2Location(Ip2locationPath)
+	cdnInstance, _ = cdn.NewCDN(CdnPath)
+    
     // 创建数据存放目录（如果不存在）
     if _, err := os.Stat(dataDir); os.IsNotExist(err) {
         if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -1851,14 +2165,26 @@ func main() {
 
         if id == "svg" {
             // 如果id是svg，生成SVG图像并返回
-            svgContent := generateSVG(clientIP)
+            // 查询IP地址信息
+	    ipInfo := queryIP(clientIP)
+            svgContent := generateSVG(ipInfo)
             w.Header().Set("Content-Type", "image/svg+xml")
             w.Header().Set("Cache-Control", "no-cache")
             w.Write([]byte(svgContent))
         } else if id == "ip" {
             // 如果id是ip，直接返回IP地址
-            w.Header().Set("Content-Type", "text/plain")
-            w.Write([]byte(clientIP))
+            ipInfo := queryIP(clientIP)
+            w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+            w.Write([]byte(ipInfo))
+        } else if id == "ua" {
+            // 获取用户代理信息
+	    userAgent := r.Header.Get("User-Agent")
+	    osInfo, browserInfo := getUAInfo(userAgent) // 确保接收函数返回值
+	    UAInfo := osInfo + "/" + browserInfo
+            svgContent := generateUASVG(UAInfo)
+            w.Header().Set("Content-Type", "image/svg+xml")
+            w.Header().Set("Cache-Control", "no-cache")
+            w.Write([]byte(svgContent))
         } else if id == "" {  
         // 处理主页
         indexHandler(w, r)
