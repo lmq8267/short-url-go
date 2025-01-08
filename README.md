@@ -26,6 +26,7 @@
 ```bash
 -p [端口号] 监听指定端口号,默认8080
 -d [目录路径] 指定数据存放目录路径，默认当前程序路径的./short_data
+-d [目录路径] 指定IP离线数据库存放目录路径，默认/tmp
 -log [目录路径] 指定日志输出文件的目录路径
 -e [邮箱地址] 指定邮箱地址，修改页面的邮箱地址
 -admin     启用后台管理页面（/admin 后缀进入管理员页面）
@@ -52,6 +53,13 @@
 ![](./image/设置你的域名.png)
 这样就可以直接使用你的域名访问了
 [tt.cnqq.cloudns.ch](https://tt.cnqq.cloudns.ch/)
+
+```
+#shell查询IP地址
+
+curl -4 http://你的域名地址/?id=ip
+curl -6 http://你的域名地址/?id=ip
+```
 
 ### API
 ```badh
