@@ -1857,7 +1857,7 @@ func generateSVG(clientIP string) string {
     textWidth := len(clientIP) * charWidth  // 计算文本宽度
 
     // 右边矩形宽度比文本宽度多一些，保证有适当的间隔
-    rectWidth := textWidth - 10 // 右边矩形的宽度
+    rectWidth := textWidth // 右边矩形的宽度
 
     // 调整左边矩形的宽度，使其比原来小一些
     leftRectWidth := 30 // 左边矩形宽度减少至 30（你可以根据实际需求调整）
