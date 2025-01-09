@@ -2167,6 +2167,7 @@ func main() {
         if ipParam != "" {
             // 如果ip不为空，查询IP归属地
             ipInfo := queryIP(ipParam)
+	    log.Printf("查询归属地： %s", ipInfo)
             // 找到第一个空格的位置，排除IP地址部分
             if idx := strings.Index(ipInfo, " "); idx != -1 {
                 ipInfo = ipInfo[idx+1:] // 取空格后面的内容
@@ -2180,6 +2181,7 @@ func main() {
             // 如果id是svg，生成SVG图像并返回
             // 查询IP地址信息
 	    ipInfo := queryIP(clientIP)
+	    log.Printf("生成svg： %s", ipInfo)
             svgContent := generateSVG(ipInfo)
             w.Header().Set("Content-Type", "image/svg+xml")
             w.Header().Set("Cache-Control", "no-cache")
@@ -2187,6 +2189,7 @@ func main() {
         } else if id == "ip" {
             // 如果id是ip，直接返回IP地址
             ipInfo := queryIP(clientIP)
+	    log.Printf("查询ip： %s", ipInfo)
             w.Header().Set("Content-Type", "text/plain; charset=utf-8")
             w.Write([]byte(ipInfo))
         } else if id == "ua" {
@@ -2194,6 +2197,7 @@ func main() {
 	    userAgent := r.Header.Get("User-Agent")
 	    osInfo, browserInfo := getUAInfo(userAgent) // 确保接收函数返回值
 	    UAInfo := osInfo + "/" + browserInfo
+	    log.Printf("查询us： %s", UAInfo)
             svgContent := generateUASVG(UAInfo)
             w.Header().Set("Content-Type", "image/svg+xml")
             w.Header().Set("Cache-Control", "no-cache")
