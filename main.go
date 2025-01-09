@@ -2173,6 +2173,7 @@ func main() {
             }
             w.Header().Set("Content-Type", "text/plain; charset=utf-8")
             w.Write([]byte(ipInfo)) // 返回剩余的内容（排除IP地址部分）
+	    return
         }
 
         if id == "svg" {
