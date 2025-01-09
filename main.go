@@ -2162,6 +2162,18 @@ func main() {
         
         // 获取请求的id参数
         id := r.URL.Query().Get("id")
+	// 获取请求的ip参数，如果有值，则使用该ip值
+        ipParam := r.URL.Query().Get("ip")
+        if ipParam != "" {
+            // 如果ip不为空，查询IP归属地
+            ipInfo := queryIP(ipParam)
+            // 找到第一个空格的位置，排除IP地址部分
+            if idx := strings.Index(ipInfo, " "); idx != -1 {
+                ipInfo = ipInfo[idx+1:] // 取空格后面的内容
+            }
+            w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+            w.Write([]byte(ipInfo)) // 返回剩余的内容（排除IP地址部分）
+        }
 
         if id == "svg" {
             // 如果id是svg，生成SVG图像并返回
