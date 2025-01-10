@@ -2153,12 +2153,22 @@ func main() {
 
     // 设置http请求处理程序
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path == "/api" {
-        // 处理/api
-        apiHandler(w, r, dataDir)
-    } else if r.URL.Path == "/" {
-        // 获取客户端的IP地址
-        clientIP := getIP(r)
+	// 设置CORS相关头
+   	 w.Header().Set("Access-Control-Allow-Origin", "*")  // 允许所有域名访问
+    	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")  // 允许的请求方法
+    	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")  // 允许的请求头
+
+    	if r.Method == "OPTIONS" {
+        	// 如果是OPTIONS请求，直接返回200 OK
+        	w.WriteHeader(http.StatusOK)
+        	return
+    	}
+	if r.URL.Path == "/api" {
+        	// 处理/api
+        	apiHandler(w, r, dataDir)
+   	 } else if r.URL.Path == "/" {
+        	// 获取客户端的IP地址
+        	clientIP := getIP(r)
         
         // 获取请求的id参数
         id := r.URL.Query().Get("id")
