@@ -2199,7 +2199,7 @@ func main() {
         } else if id == "ip" {
             // 如果id是ip，直接返回IP地址
             ipInfo := queryIP(clientIP)
-	    log.Printf("查询ip： %s", ipInfo)
+	    log.Printf("查询IP： %s", ipInfo)
             w.Header().Set("Content-Type", "text/plain; charset=utf-8")
             w.Write([]byte(ipInfo))
         } else if id == "ua" {
@@ -2207,7 +2207,7 @@ func main() {
 	    userAgent := r.Header.Get("User-Agent")
 	    osInfo, browserInfo := getUAInfo(userAgent) // 确保接收函数返回值
 	    UAInfo := osInfo + "/" + browserInfo
-	    log.Printf("查询us： %s", UAInfo)
+	    log.Printf("查询UA： %s", UAInfo)
             svgContent := generateUASVG(UAInfo)
             w.Header().Set("Content-Type", "image/svg+xml")
             w.Header().Set("Cache-Control", "no-cache")
