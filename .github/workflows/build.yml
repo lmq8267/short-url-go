@@ -95,7 +95,7 @@ jobs:
             echo "shortener ：`ls -alh shortener | awk '{print $5}'`"
             file shortener
             mv -f shortener /opt/shortener-${NAME}
-            echo "build_time=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+            echo "build_time=$(date '+%Y年%m月%d日%H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
             echo "build_tag=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       - name: 安装 UPX
         if: github.event.inputs.upx == 'true'
@@ -115,7 +115,7 @@ jobs:
         with:
           token: ${{ secrets.c8 }}
           body: |
-           > ### 编译时间： ${{ env.build_time }}
+           > ### ![](https://img.shields.io/badge/%E7%BC%96%E8%AF%91%E6%97%B6%E9%97%B4-${{ env.build_time }}-8267?logo=github&labelColor=%E9%A1%BB)![](https://img.shields.io/github/downloads/${GITHUB_REPOSITORY}/${{ env.build_tag }}/total?label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0&logo=github)
            
           tag_name: ${{ env.build_tag }}
           name: Version:${{ env.build_tag }}
