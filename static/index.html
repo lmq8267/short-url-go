@@ -200,7 +200,7 @@
                 <div id="input-container">
                     <div class="input-group mb-3">
                         <label class="input-group-text" for="type">请选择功能</label>
-                        <select class="form-control" id="type" name="type">
+                        <select class="form-select" id="type" name="type">
                             <option value="link">缩短链接</option>
                             <option value="html">HTML网页</option>
                             <option value="text">txt文本</option>
@@ -223,12 +223,12 @@
                        <label class="input-group-text" for="expiration">有效期</label>
                        <select class="form-select" id="expiration" name="expiration" onchange="handleExpirationChange()">
                        <option value="">永久有效</option>
-                       <option value="5" selected>5分钟</option>
+                       <option value="5">5分钟</option>
                        <option value="10">10分钟</option>
                        <option value="30">30分钟</option>
                        <option value="60">1小时</option>
                        <option value="600">10小时</option>
-                       <option value="1440">1天</option>
+                       <option value="1440" selected>1天</option>
                        <option value="10080">1周</option>
                        <option value="43200">1个月</option>
                        <option value="31536000">1年</option>
