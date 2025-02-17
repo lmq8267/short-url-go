@@ -152,7 +152,7 @@ func initializeData(dataFilePath string) {
         TodayVisits:      0,
         LastVisitsUpdate: today,
         Email:            os.Getenv("Email"),
-        Img:              "https://pic.rmb.bdstatic.com/bjh/gallery/373e5f5d10577706a529f69cc4997ecd608.jpeg",
+        Img:              "https://img-baofun.zhhainiao.com/pcwallpaper_ugc/static/a613b671bce87bdafae01938c7cad011.jpg",
     }
     // 如果short_data.json文件不存在则创建
     if _, err := os.Stat(dataFilePath); os.IsNotExist(err) {
