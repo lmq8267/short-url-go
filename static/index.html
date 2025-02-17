@@ -214,13 +214,12 @@
                         <input type="text" class="form-control" id="shortCode" placeholder="可选，留空随机生成后缀">
                     </div>
                     <div class="input-group mb-3">
-                        <span class="input-group-text">请设定密码</span>
+                        <span class="input-group-text" title="⚠️请务必牢记后缀密码，忘记将无法修改，只能联系此站长删除！">请设定密码</span>
                         <input type="text" class="form-control" id="password" placeholder="可选，密码保护后缀，防止他人修改">
-                        <div class="text-danger" style="color: red; font-weight: bold;">&nbsp;&nbsp;&nbsp;&nbsp;⚠️请务必牢记后缀密码，忘记将无法修改，只能联系此站长删除！👆</div>
                     </div>
 
                     <div class="input-group mb-3">
-                       <label class="input-group-text" for="expiration">有效期</label>
+                       <label class="input-group-text" for="expiration" title="⚠️过期后将会自动删除，并释放后缀，其他人将可使用！">有效期</label>
                        <select class="form-select" id="expiration" name="expiration" onchange="handleExpirationChange()">
                        <option value="">永久有效</option>
                        <option value="5">5分钟</option>
@@ -237,17 +236,15 @@
                        <input type="number" class="form-control" id="expirationCustom" placeholder="请输入分钟数" style="display:none;">
                     </div>
                     <div>
-                       <p class="text-dangers" style="color: white !important; font-weight: bold; font-size: 14px;">&nbsp;&nbsp;&nbsp;&nbsp;⚠️过期后将会自动删除，并释放后缀，其他人将可使用！👆</p>
                     </div>
                     <div class="input-group mb-3">
-                        <label class="input-group-text" for="burn_after_reading">阅后即焚</label>
+                        <label class="input-group-text" for="burn_after_reading" title="⚠️启用后打开一次将自动删除，并释放后缀，其他人将可使用！">阅后即焚</label>
                         <select class="form-select" id="burn_after_reading">
                             <option value="false" selected>不启用</option>
                             <option value="true">启用</option>
                         </select>
                     </div>
                     <div>
-                        <p class="text-dangers" style="color: white !important; font-weight: bold; font-size: 14px;">&nbsp;&nbsp;&nbsp;&nbsp;⚠️启用后打开一次将自动删除，并释放后缀，其他人将可使用！👆</p>
                     </div>
                     <div class="input-group mb-3">
                         <span class="input-group-text">请输入内容</span>
