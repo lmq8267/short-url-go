@@ -11,6 +11,7 @@ import (
     "net"
     "net/http"
     "os"
+    "os/exec"
     "path/filepath"
     "strconv"
     "runtime"
@@ -21,6 +22,7 @@ import (
     "math/rand"
     "html/template"
     "sync"
+    "syscall"
     "io"
     "regexp"
     "github.com/natefinch/lumberjack"
@@ -2007,6 +2009,7 @@ func main() {
         port    int
         showHelp bool
         showVersion bool
+	daemon   bool
         email   string
         username   string
         password   string
@@ -2022,6 +2025,7 @@ func main() {
     flag.StringVar(&password, "w", "admin", "指定管理页面密码")
     flag.BoolVar(&admin, "admin", false, "启用管理员模式")
     flag.StringVar(&email, "e", "请修改为你的邮箱", "指定邮箱")
+    flag.BoolVar(&daemon, "daemon", false, "以后台模式运行")
     flag.BoolVar(&showHelp, "h", false, "帮助信息")
     flag.BoolVar(&showHelp, "help", false, "帮助信息")
     flag.BoolVar(&showVersion, "v", false, "版本号")
@@ -2059,7 +2063,6 @@ func main() {
 	fmt.Printf("  %s ", os.Args[0])
 	colorPrint(36, fmt.Sprintf("-admin "))
 	fmt.Println(" 启用管理员后台页面")
-
 	
 	fmt.Printf("  %s ", os.Args[0])
 	colorPrint(36, fmt.Sprintf("-e "))
@@ -2077,9 +2080,12 @@ func main() {
 	fmt.Println(" 指定管理页面的登陆密码")
 
 	fmt.Printf("  %s ", os.Args[0])
+	colorPrint(36, fmt.Sprintf("-daemon "))
+	fmt.Println(" 以后台模式运行")
+
+	fmt.Printf("  %s ", os.Args[0])
 	colorPrint(36, fmt.Sprintf("-v "))
 	fmt.Println(" 版本号")
-	
 	
 	fmt.Printf("  %s ", os.Args[0])
 	colorPrint(36, fmt.Sprintf("-h "))
@@ -2095,6 +2101,9 @@ func main() {
        return
     }
 
+    if daemon {
+		runAsDaemon()
+    }
     if email != "" {
 		os.Setenv("Email", email)
     }
@@ -2249,4 +2258,30 @@ func main() {
     if err := http.Serve(ln, nil); err != nil {
         log.Fatalf("服务器错误: %v", err)
     }
+}
+func runAsDaemon() {
+	switch runtime.GOOS {
+	case "linux", "freebsd":
+		if os.Getppid() != 1 {
+			cmd := exec.Command(os.Args[0], os.Args[1:]...)
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+			cmd.Stdout, cmd.Stderr, cmd.Stdin = nil, nil, nil
+			err := cmd.Start()
+			if err != nil {
+				log.Fatalf("后台运行失败: %v", err)
+			}
+			os.Exit(0) 
+		}
+
+	case "windows":
+		cmd := exec.Command(os.Args[0], os.Args[1:]...)
+		err := cmd.Start()
+		if err != nil {
+			log.Fatalf("后台运行失败: %v", err)
+		}
+		os.Exit(0)
+
+	default:
+		log.Println("当前系统不支持后台模式")
+	}
 }
