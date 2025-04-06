@@ -680,6 +680,9 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
         // 拼接 extra 到 apiReq.LongUrl
            apiReq.LongUrl += extra
     	}
+	if r.URL.RawQuery != "" {
+            apiReq.LongUrl += "?" + r.URL.RawQuery
+        }
         // 如果是 WebSocket 请求，返回特定的头字段或响应体
         if r.Header.Get("Upgrade") == "websocket" {
 	   if strings.HasPrefix(apiReq.LongUrl, "http://") {
@@ -734,7 +737,9 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
         	}
            	apiReq.LongUrl += extra
     	}
-	
+	if r.URL.RawQuery != "" {
+            apiReq.LongUrl += "?" + r.URL.RawQuery
+        }
     	// 判断是否为 curl 或 wget 请求
     	userAgent := r.Header.Get("User-Agent")
     	if strings.Contains(userAgent, "curl") || strings.Contains(userAgent, "wget") {
