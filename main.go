@@ -156,82 +156,111 @@ func initializeData(dataFilePath string) {
         Email:            os.Getenv("Email"),
         Img:              "https://img-baofun.zhhainiao.com/pcwallpaper_ugc/static/a613b671bce87bdafae01938c7cad011.jpg",
     }
-    // 如果short_data.json文件不存在则创建
-    if _, err := os.Stat(dataFilePath); os.IsNotExist(err) {
-        file, err := os.Create(dataFilePath)
+    // 从完整路径中拆分目录和文件名
+    dataDir := filepath.Dir(dataFilePath)
+    dataFileName := filepath.Base(dataFilePath)
+
+    // 检查文件是否存在，以及文件大小是否为 0
+    fi, err := os.Stat(dataFilePath)
+    if os.IsNotExist(err) || (err == nil && fi.Size() == 0) {
+        // 文件不存在或为空，直接创建并写入初始数据
+        createAndWrite(dataFilePath, initialData)
+        return
+    }
+
+    // 文件存在且大小 > 0，则尝试打开并解析
+    file, err := os.OpenFile(dataFilePath, os.O_RDWR, 0644)
+    if err != nil {
+        log.Fatalf("无法打开统计数据文件: %v", err)
+    }
+    defer file.Close()
+
+    // 读取并解析 JSON
+    var rawData map[string]interface{}
+    decoder := json.NewDecoder(file)
+    if err := decoder.Decode(&rawData); err != nil {
+        // 解析失败（可能是无效 JSON），重建文件
+        log.Printf("统计数据文件内容无效，重建文件: %v", err)
+        file.Close()
+        createAndWrite(dataFilePath, initialData)
+        return
+    }
+
+    // 构建现有数据，补齐缺失字段
+    existingData := Data{
+        TotalRules:       getIntValue(rawData, "total_rules", initialData.TotalRules),
+        TodayNewRules:    getIntValue(rawData, "today_new_rules", initialData.TodayNewRules),
+        LastRuleUpdate:   getStringValue(rawData, "last_rule_update", initialData.LastRuleUpdate),
+        TotalVisits:      getIntValue(rawData, "total_visits", initialData.TotalVisits),
+        TodayVisits:      getIntValue(rawData, "today_visits", initialData.TodayVisits),
+        LastVisitsUpdate: getStringValue(rawData, "last_visits_update", initialData.LastVisitsUpdate),
+        Img:              getStringValue(rawData, "img", initialData.Img),
+        Email:            getStringValue(rawData, "email", initialData.Email),
+    }
+
+    // 如果日期已变，重置当天计数
+    if existingData.LastRuleUpdate != today {
+        existingData.LastRuleUpdate = today
+        existingData.TodayNewRules = 0
+    }
+    if existingData.LastVisitsUpdate != today {
+        existingData.LastVisitsUpdate = today
+        existingData.TodayVisits = 0
+    }
+    // 如果环境变量 Email 有变化，同步更新
+    if envEmail := os.Getenv("Email"); envEmail != "" && existingData.Email != envEmail {
+        existingData.Email = envEmail
+    }
+
+    // 重新统计 dataDir 目录下的 .json 规则文件数量（不含统计文件本身）
+    totalRules := 0
+    err = filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
         if err != nil {
-            log.Fatalf("无法创建统计数据文件: %v", err)
+            return err
         }
-        defer file.Close()
+        if !info.IsDir() && filepath.Ext(info.Name()) == ".json" && info.Name() != dataFileName {
+            totalRules++
+        }
+        return nil
+    })
+    if err != nil {
+        log.Fatalf("无法统计 .json 文件数量: %v", err)
+    }
+    existingData.TotalRules = totalRules
 
-        encoder := json.NewEncoder(file)
-        if err := encoder.Encode(initialData); err != nil {
-            log.Fatalf("无法写入初始统计数据: %v", err)
-        }
-    } else {
-        // 如果文件存在，检查缺失字段并补充
-        file, err := os.OpenFile(dataFilePath, os.O_RDWR, 0644)
-        if err != nil {
-            log.Fatalf("无法打开统计数据文件: %v", err)
-        }
-        defer file.Close()
-
-        var rawData map[string]interface{}
-        decoder := json.NewDecoder(file)
-        if err := decoder.Decode(&rawData); err != nil {
-            log.Fatalf("无法解析统计数据文件: %v", err)
-        }
-
-        existingData := Data{
-            TotalRules:       getIntValue(rawData, "total_rules", initialData.TotalRules),
-            TodayNewRules:    getIntValue(rawData, "today_new_rules", initialData.TodayNewRules),
-            LastRuleUpdate:   getStringValue(rawData, "last_rule_update", initialData.LastRuleUpdate),
-            TotalVisits:      getIntValue(rawData, "total_visits", initialData.TotalVisits),
-            TodayVisits:      getIntValue(rawData, "today_visits", initialData.TodayVisits),
-            LastVisitsUpdate: getStringValue(rawData, "last_visits_update", initialData.LastVisitsUpdate),
-            Img:              getStringValue(rawData, "img", initialData.Img),
-            Email:            getStringValue(rawData, "email", initialData.Email),
-        }
-
-        if existingData.LastRuleUpdate != today {
-            existingData.LastRuleUpdate = today
-            existingData.TodayNewRules = 0
-        }
-        if existingData.LastVisitsUpdate != today {
-            existingData.LastVisitsUpdate = today
-            existingData.TodayVisits = 0
-        }
-        if os.Getenv("Email") != "" && existingData.Email != os.Getenv("Email") {
-            existingData.Email = os.Getenv("Email")
-        }
-        dataFilePath := filepath.Join(dataDir, "short_data.json")
-        // 统计dataDir目录下的.json文件数量
-        totalRules := 0
-        err = filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
-            if err != nil {
-                return err
-            }
-            if !info.IsDir() && filepath.Ext(info.Name()) == ".json" && info.Name() != filepath.Base(dataFilePath) {
-                totalRules++
-            }
-            return nil
-        })
-        if err != nil {
-            log.Fatalf("无法统计.json文件数量: %v", err)
-        }
-        existingData.TotalRules = totalRules
-        
-        // 将文件内容截断为0并将更新后的数据写入
-        file.Seek(0, 0)
-        file.Truncate(0)
-        // 创建 JSON 编码器并设置缩进将数据写入文件
-        encoder := json.NewEncoder(file)
-        encoder.SetIndent("", "  ")
-        if err := encoder.Encode(existingData); err != nil {
-            log.Fatalf("无法更新统计数据文件: %v", err)
-        }
+    // 将文件内容截断后写入更新后的数据，带缩进
+    if _, err := file.Seek(0, 0); err != nil {
+        log.Fatalf("无法移动文件指针: %v", err)
+    }
+    if err := file.Truncate(0); err != nil {
+        log.Fatalf("无法截断文件内容: %v", err)
+    }
+    encoder := json.NewEncoder(file)
+    encoder.SetIndent("", "  ")
+    if err := encoder.Encode(existingData); err != nil {
+        log.Fatalf("无法更新统计数据文件: %v", err)
     }
 }
+
+// createAndWrite 创建文件并写入给定的 Data 对象
+func createAndWrite(path string, data Data) {
+    // 确保目录存在
+    if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+        log.Fatalf("无法创建目录: %v", err)
+    }
+    file, err := os.Create(path)
+    if err != nil {
+        log.Fatalf("无法创建统计数据文件: %v", err)
+    }
+    defer file.Close()
+
+    encoder := json.NewEncoder(file)
+    encoder.SetIndent("", "  ")
+    if err := encoder.Encode(data); err != nil {
+        log.Fatalf("无法写入初始统计数据: %v", err)
+    }
+}
+
 //随机生成8位字符的后缀
 func generateRandomString(n int) string {
     const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
