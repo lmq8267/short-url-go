@@ -697,24 +697,24 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
     case "link":
     	// 判断 extra 是否为空
     	if extra != "" {
-        // 检查 apiReq.LongUrl 是否以 '/' 结尾，或 extra 是否以 '/' 开头
-        if strings.HasSuffix(apiReq.LongUrl, "/") && strings.HasPrefix(extra, "/") {
-            // 如果两者都有 '/'，移除 extra 的前导 '/'
-            extra = strings.TrimPrefix(extra, "/")
-        } else if !strings.HasSuffix(apiReq.LongUrl, "/") && !strings.HasPrefix(extra, "/") {
-            // 如果两者都没有 '/'，在两者之间添加一个 '/'
-            extra = "/" + extra
-        }
+        	// 检查 apiReq.LongUrl 是否以 '/' 结尾，或 extra 是否以 '/' 开头
+        	if strings.HasSuffix(apiReq.LongUrl, "/") && strings.HasPrefix(extra, "/") {
+            	// 如果两者都有 '/'，移除 extra 的前导 '/'
+            	extra = strings.TrimPrefix(extra, "/")
+        	} else if !strings.HasSuffix(apiReq.LongUrl, "/") && !strings.HasPrefix(extra, "/") {
+           	 	// 如果两者都没有 '/'，在两者之间添加一个 '/'
+            	extra = "/" + extra
+        	}
 
-        // 拼接 extra 到 apiReq.LongUrl
+        	// 拼接 extra 到 apiReq.LongUrl
            apiReq.LongUrl += extra
     	}
-	if r.URL.RawQuery != "" {
+		if r.URL.RawQuery != "" {
             apiReq.LongUrl += "?" + r.URL.RawQuery
         }
         // 如果是 WebSocket 请求，返回特定的头字段或响应体
         if r.Header.Get("Upgrade") == "websocket" {
-	   if strings.HasPrefix(apiReq.LongUrl, "http://") {
+	   		if strings.HasPrefix(apiReq.LongUrl, "http://") {
                 apiReq.LongUrl = "ws://" + strings.TrimPrefix(apiReq.LongUrl, "http://")
             } else if strings.HasPrefix(apiReq.LongUrl, "https://") {
                 apiReq.LongUrl = "wss://" + strings.TrimPrefix(apiReq.LongUrl, "https://")
@@ -722,7 +722,58 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
                 // 如果没有前缀，则添加 ws://
                 apiReq.LongUrl = "ws://" + apiReq.LongUrl
             }
-	}
+		}
+		// ===== 防止 POST 被转成 GET =====
+        if r.Method == http.MethodPost {
+            // 读取原始请求体
+            body, err := io.ReadAll(r.Body)
+            if err != nil {
+                http.Error(w, "读取POST请求体失败: "+err.Error(), http.StatusBadRequest)
+                return
+            }
+
+            // 创建新的 POST 请求（模拟重定向后浏览器重新访问）
+            req, err := http.NewRequest(http.MethodPost, apiReq.LongUrl, bytes.NewReader(body))
+            if err != nil {
+                http.Error(w, "创建新POST请求失败: "+err.Error(), http.StatusInternalServerError)
+                return
+            }
+
+            // ===== 重新设置请求头（不要完全复制原来的）=====
+            // 模拟浏览器重新访问后的头部
+            req.Header.Set("User-Agent", "Mozilla/5.0 (GoRedirect/1.0)")
+            req.Header.Set("Accept", "*/*")
+
+            // 如果原请求有 Content-Type，则复制它（保留表单类型）
+            if ct := r.Header.Get("Content-Type"); ct != "" {
+                req.Header.Set("Content-Type", ct)
+            }
+
+            // 如果有自定义认证头或 token，也可以有选择性地复制
+            if auth := r.Header.Get("Authorization"); auth != "" {
+                req.Header.Set("Authorization", auth)
+            }
+
+            // 发起请求
+            client := &http.Client{}
+            resp, err := client.Do(req)
+            if err != nil {
+                http.Error(w, "转发 POST 请求失败: "+err.Error(), http.StatusBadGateway)
+                return
+            }
+            defer resp.Body.Close()
+
+            // ===== 返回目标响应给客户端 =====
+            // 复制响应头
+            for k, v := range resp.Header {
+                w.Header()[k] = v
+            }
+            w.WriteHeader(resp.StatusCode)
+
+            // 复制响应体
+            io.Copy(w, resp.Body)
+            return
+        }
         http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
     case "html":
         // 如果是 WebSocket 请求，返回特定的头字段或响应体
