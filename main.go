@@ -25,6 +25,7 @@ import (
     "syscall"
     "io"
     "regexp"
+	"bytes"
     "github.com/natefinch/lumberjack"
     "github.com/zu1k/nali/pkg/geoip"
     "github.com/zu1k/nali/pkg/ip2region"
