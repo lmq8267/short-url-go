@@ -26,6 +26,7 @@ import (
     "io"
     "regexp"
 	"bytes"
+	
     "github.com/natefinch/lumberjack"
     "github.com/zu1k/nali/pkg/geoip"
     "github.com/zu1k/nali/pkg/ip2region"
@@ -34,6 +35,8 @@ import (
     "github.com/zu1k/nali/pkg/cdn"
     "github.com/zu1k/nali/pkg/zxipv6wry"
     "github.com/zu1k/nali/pkg/ip2location"
+
+	"github.com/lmq8267/go-counter-badge/badge" 
 )
 
 //go:embed static/*
@@ -2015,96 +2018,69 @@ func queryIP(ip string) string {
 }
 
 // 生成SVG内容
-func generateSVG(clientIP string) string {
-    // 使用估算值，每个字符宽度为 5px（你可以根据实际需求调整）
-    const charWidth = 5
-    
-    // 计算文本宽度，不能在常量表达式中使用len(clientIP)
-    textWidth := len(clientIP) * charWidth  // 计算文本宽度
-
-    // 右边矩形宽度比文本宽度多一些，保证有适当的间隔
-    rectWidth := textWidth // 右边矩形的宽度
-
-    // 调整左边矩形的宽度，使其比原来小一些
-    leftRectWidth := 30 // 左边矩形宽度减少至 30（你可以根据实际需求调整）
-
-    // 确保宽度是计算出来的矩形总宽度
-    totalWidth := leftRectWidth + rectWidth
-
-    svgContent := fmt.Sprintf(`
-<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20" viewBox="0 0 %d 20">
-    <!-- 左边固定部分：背景 #515151，宽度调整为 leftRectWidth，包含左侧小圆角 -->
-    <path d="
-        M3 0 
-        h%d 
-        v20 
-        h-%d 
-        a3 3 0 0 1 -3 -3 
-        v-14 
-        a3 3 0 0 1 3 -3 
-        z" fill="#515151" />
-    <text x="10" y="15" font-size="12" fill="#ffffff">IP</text>
-
-    <!-- 右边动态部分：背景 #95c10d -->
-    <path d="
-        M%d 0 
-        h%d 
-        a3 3 0 0 1 3 3 
-        v14 
-        a3 3 0 0 1 -3 3 
-        h-%d 
-        v-20 
-        z" fill="#95c10d" />
-    <text x="%d" y="15" font-size="12" fill="#ffffff">%s</text>
-</svg>`, totalWidth, totalWidth, leftRectWidth-3, leftRectWidth-3, leftRectWidth, rectWidth-3, rectWidth-3, leftRectWidth+10, clientIP)
-
-    return svgContent
+func generateSVG(clientIP string) ([]byte, bool) {
+    // 创建 badge 结构体  
+    flatBadge := badge.Badge{  
+        FontType:             badge.Verdana,  
+        LeftText:             "IP",  
+        LeftTextColor:        "#fff",  
+        LeftBackgroundColor:  "#515151",  
+        RightText:            clientIP,  
+        RightTextColor:       "#fff",  
+        RightBackgroundColor: "#95c10d",  
+        XRadius:              "3",  // 圆角  
+        YRadius:              "3",  
+    }  
+      
+    // 使用 badge writer 渲染  
+    badgeWriter, err := badge.NewWriter()  
+    if err != nil {  
+        // 只记录错误，返回失败标记  
+		log.Printf("创建badge writer失败: %v", err)
+        return nil, false  
+    }  
+      
+    svg, err := badgeWriter.RenderFlatBadge(flatBadge)  
+    if err != nil {  
+        // 只记录错误，返回失败标记  
+		log.Printf("渲染IP SVG失败: %v", err)
+        return nil, false  
+    }  
+      
+    return svg, true  
 }
-func generateUASVG(uaInfo string) string {
-    // 使用估算值，每个字符宽度为 5px（你可以根据实际需求调整）
-    const charWidth = 6
-    fmt.Println("UA标识：", uaInfo)
-    // 计算文本宽度，不能在常量表达式中使用len(UAInfo)
-    textWidth := len(uaInfo) * charWidth  // 计算文本宽度
 
-    // 右边矩形宽度比文本宽度多一些，保证有适当的间隔
-    rectWidth := textWidth + 30 // 右边矩形的宽度
-
-    // 调整左边矩形的宽度，使其比原来小一些
-    leftRectWidth := 40 // 左边矩形宽度减少至 30（你可以根据实际需求调整）
-
-    // 确保宽度是计算出来的矩形总宽度
-    totalWidth := leftRectWidth + rectWidth
-
-    svgContent := fmt.Sprintf(`
-<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20" viewBox="0 0 %d 20">
-    <!-- 左边固定部分：背景 #515151，宽度调整为 leftRectWidth，包含左侧小圆角 -->
-    <path d="
-        M3 0 
-        h%d 
-        v20 
-        h-%d 
-        a3 3 0 0 1 -3 -3 
-        v-14 
-        a3 3 0 0 1 3 -3 
-        z" fill="#515151" />
-    <text x="10" y="15" font-size="12" fill="#ffffff">UA</text>
-
-    <!-- 右边动态部分：背景 #95c10d -->
-    <path d="
-        M%d 0 
-        h%d 
-        a3 3 0 0 1 3 3 
-        v14 
-        a3 3 0 0 1 -3 3 
-        h-%d 
-        v-20 
-        z" fill="#95c10d" />
-    <text x="%d" y="15" font-size="12" fill="#ffffff">%s</text>
-</svg>`, totalWidth, totalWidth, leftRectWidth-3, leftRectWidth-3, leftRectWidth, rectWidth-3, rectWidth-3, leftRectWidth+10, uaInfo)
-
-    return svgContent
+func generateUASVG(uaInfo string) ([]byte, bool) {
+    flatBadge := badge.Badge{    
+        FontType:             badge.Verdana,    
+        LeftText:             "UA",    
+        LeftTextColor:        "#fff",    
+        LeftBackgroundColor:  "#515151",    
+        RightText:            uaInfo,    
+        RightTextColor:       "#fff",    
+        RightBackgroundColor: "#95c10d",    
+        XRadius:              "3",  // 圆角    
+        YRadius:              "3",    
+    }   
+	
+    // 使用 badge writer 渲染  
+    badgeWriter, err := badge.NewWriter()  
+    if err != nil {  
+        // 只记录错误，返回失败标记  
+		log.Printf("创建badge writer失败: %v", err)
+        return nil, false  
+    }  
+      
+    svg, err := badgeWriter.RenderFlatBadge(flatBadge)  
+    if err != nil {  
+        // 只记录错误，返回失败标记  
+		log.Printf("渲染UA SVG失败: %v", err)
+        return nil, false  
+    }  
+      
+    return svg, true
 }
+
 // 判断用户代理并获取操作系统和浏览器信息
 func getUAInfo(userAgent string) (string, string) {
 	// 操作系统信息提取
@@ -2310,7 +2286,7 @@ func main() {
         if ipParam != "" {
             // 如果ip不为空，查询IP归属地
             ipInfo := queryIP(ipParam)
-	    log.Printf("查询归属地： %s", ipInfo)
+	    	log.Printf("查询归属地： %s", ipInfo)
             // 找到第一个空格的位置，排除IP地址部分
             if idx := strings.Index(ipInfo, " "); idx != -1 {
                 ipInfo = ipInfo[idx+1:] // 取空格后面的内容
@@ -2323,9 +2299,14 @@ func main() {
         if id == "svg" {
             // 如果id是svg，生成SVG图像并返回
             // 查询IP地址信息
-	    ipInfo := queryIP(clientIP)
-	    log.Printf("生成svg： %s", ipInfo)
-            svgContent := generateSVG(ipInfo)
+	    	ipInfo := queryIP(clientIP)
+	    	log.Printf("生成svg： %s", ipInfo)
+			
+            svgContent, success := generateSVG(ipInfo)
+			if !success {  
+        		return  // 失败时不响应  
+    		}
+			
             w.Header().Set("Content-Type", "image/svg+xml")
             w.Header().Set("Cache-Control", "no-cache")
             w.Write([]byte(svgContent))
@@ -2337,11 +2318,16 @@ func main() {
             w.Write([]byte(ipInfo))
         } else if id == "ua" {
             // 获取用户代理信息
-	    userAgent := r.Header.Get("User-Agent")
-	    osInfo, browserInfo := getUAInfo(userAgent) // 确保接收函数返回值
-	    UAInfo := osInfo + "/" + browserInfo
-	    log.Printf("查询UA： %s", UAInfo)
-            svgContent := generateUASVG(UAInfo)
+	    	userAgent := r.Header.Get("User-Agent")
+	    	osInfo, browserInfo := getUAInfo(userAgent) // 确保接收函数返回值
+	    	UAInfo := osInfo + "/" + browserInfo
+	    	log.Printf("查询UA： %s", UAInfo)
+
+			svgContent, success := generateUASVG(UAInfo)
+			if !success {  
+        		return  // 失败时不响应  
+    		}
+			
             w.Header().Set("Content-Type", "image/svg+xml")
             w.Header().Set("Cache-Control", "no-cache")
             w.Write([]byte(svgContent))
