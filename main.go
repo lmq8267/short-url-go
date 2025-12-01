@@ -1261,13 +1261,15 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 				color: #333;
 				padding: 20px;
 			}
-			.container {
-				width: 90%;
-				margin: 0 auto;
-				padding: 20px;
-				background-color: #fff;
-				box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-				border-radius: 8px;
+			.container {  
+   			 	width: 90%;  
+    			min-width: fit-content;  
+   	 			margin: 0 auto;  
+    			padding: 20px;  
+    			background-color: #fff;  
+    			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  
+    			border-radius: 8px;  
+    			overflow-x: auto;  
 			}
 			input[type="text"], textarea {
 				padding: 10px;
@@ -1297,7 +1299,7 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 			table {
 				width: 100%;
 				border-collapse: collapse;
-				margin: 20px 0;
+				margin: 10px 0;
 			}
 			table, th, td {
 				border: 1px solid #ddd;
@@ -1308,14 +1310,43 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 				padding: 12px;
 			}
 			td {
-				padding: 10px;
+				padding: 6px;
 				text-align: center;
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
-			td:nth-child(1) {
-				width: 300px;
-				white-space: normal;
+			td:nth-child(1) {  
+    			width: 300px;  
+    			max-width: 300px;  
+    			white-space: nowrap;  
+    			overflow: hidden;  
+    			text-overflow: ellipsis;  
+    			word-wrap: break-word;  
+    			word-break: break-all;  
+			}  
+			td:nth-child(1).truncated {  
+    			cursor: pointer;  
+    			color: #007bff;  
+    			text-decoration: underline;  
+    			transition: all 0.3s ease;  
+			}  
+			td:nth-child(1).truncated:hover {  
+    			color: #0056b3;  
+   				background-color: #f0f8ff;  
+			}  
+			td:nth-child(1).expanded {  
+    			white-space: normal;  
+    			max-width: none;  
+    			cursor: pointer;  
+				color: #000; /* 展开后恢复黑色 */
+    			background-color: #f0f8ff;  
+			}
+			td:last-child {  
+    			white-space: nowrap;  
+			}  
+			td:last-child button {  
+    			display: inline-block;  
+    			margin: 0 2px;  
 			}
 			.highlight {
 				background-color: yellow;
@@ -1329,89 +1360,100 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 			.pagination span {
 				margin: 0 10px;
 			}
-			@media (max-width: 768px) {
-				.container {
-					width: 100%;
-					padding: 10px;
-				}
-				button {
-					width: 100%;
-					margin: 5px 0;
-				}
-				input[type="text"], textarea {
-					width: 100%;
-				}
+			@media (max-width: 768px) {  
+    			.container {  
+        			width: 95%;  
+        			padding: 10px;  
+        			overflow-x: auto; 
+					min-width: fit-content;
+    			}  
+    			table {  
+        			min-width: 800px;  
+        			font-size: 14px;  
+    			}  
+    			th, td {  
+        			padding: 8px 4px;  
+    			}  
+    			td:last-child button {  
+        			display: block;  
+       	 			margin: 2px 0;  
+        			width: 100%;  
+    			}  
+    			td:nth-child(1) {  
+        			width: 200px;  
+        			max-width: 200px;  
+    			}  
 			}
 			.editable {
 				background-color: #f0f8ff;
 			}
 			/* 新增日志悬浮按钮和展示区域的样式 */
-		        /* 日志弹出框样式 */
-        .log-popup {
-            display: none;
-            position: fixed;
-            top: 10%;
-            right: 10%;
-            width: 80%;
-            height: 70%;
-            background-color: #fff;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            border-radius: 8px;
-            overflow: hidden;
-            z-index: 1000;
-            padding: 10px;
-        }
-        .log-popup .log-content {
-            height: calc(100% - 50px); /* 减去顶部和底部的高度 */
-            overflow-y: auto;
-            padding: 10px;
-            border: 1px solid #ddd;
-            box-sizing: border-box;
-            white-space: pre-wrap; /* 保持原有的换行 */
-        }
-        .log-popup .log-footer {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-        }
-        .log-popup .close-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 40px;  /* 控制按钮的宽度 */
-    height: 40px;  /* 控制按钮的高度 */
-    background-color: #007bff;  /* 按钮背景色为蓝色 */
-    color: #ffffff;  /* 文字颜色为白色 */
-    border: none;
-    border-radius: 50%;  /* 使用50%的圆角使其呈现圆形效果 */
-    font-size: 16px;
-    cursor: pointer;
-    display: flex;  /* 使用flex布局使得按钮内文字垂直水平居中 */
-    justify-content: center;
-    align-items: center;
-}
+		    /* 日志弹出框样式 */
+        	.log-popup {
+            	display: none;
+            	position: fixed;
+            	top: 10%;
+           	 	right: 10%;
+            	width: 80%;
+            	height: 70%;
+            	background-color: #fff;
+            	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            	border-radius: 8px;
+            	overflow: hidden;
+            	z-index: 1000;
+            	padding: 10px;
+        	}
+        	.log-popup .log-content {
+            	height: calc(100% - 50px); /* 减去顶部和底部的高度 */
+           	 	overflow-y: auto;
+            	padding: 10px;
+            	border: 1px solid #ddd;
+            	box-sizing: border-box;
+            	white-space: pre-wrap; /* 保持原有的换行 */
+        	}
+        	.log-popup .log-footer {
+            	position: absolute;
+            	bottom: 10px;
+            	right: 10px;
+        	}
+        	.log-popup .close-btn {
+    			position: absolute;
+    			top: 10px;
+    			right: 10px;
+   	 			width: 40px;  /* 控制按钮的宽度 */
+    			height: 40px;  /* 控制按钮的高度 */
+    			background-color: #007bff;  /* 按钮背景色为蓝色 */
+    			color: #ffffff;  /* 文字颜色为白色 */
+    			border: none;
+    			border-radius: 50%;  /* 使用50%的圆角使其呈现圆形效果 */
+    			font-size: 16px;
+    			cursor: pointer;
+    			display: flex;  /* 使用flex布局使得按钮内文字垂直水平居中 */
+    			justify-content: center;
+    			align-items: center;
+			}
 
-.log-popup .close-btn:hover {
-    background-color: #0056b3;  /* 鼠标悬停时按钮背景色稍微变深 */
-}
+			.log-popup .close-btn:hover {
+    			background-color: #0056b3;  /* 鼠标悬停时按钮背景色稍微变深 */
+			}
 
-        /* 悬浮按钮样式 */
-        .floating-btn {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background-color: #007bff;
-    color: #fff;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px; /* 使用圆角半径使其呈现矩形效果 */
-    cursor: pointer;
-    font-size: 16px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-        .floating-btn:hover {
-            background-color: #0056b3;
-        }
+        	/* 悬浮按钮样式 */
+        	.floating-btn {
+    			position: fixed;
+   		 		top: 10px;
+    			right: 10px;
+			    background-color: #007bff;
+    			color: #fff;
+    			border: none;
+    			padding: 10px 20px;
+    			border-radius: 5px; /* 使用圆角半径使其呈现矩形效果 */
+    			cursor: pointer;
+    			font-size: 16px;
+    			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+			}
+        	.floating-btn:hover {
+            	background-color: #0056b3;
+        	}
 		</style>
 		<script>
 			function searchTable() {
@@ -1479,8 +1521,42 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 
 				document.getElementById("currentPage").innerText = " 当前页: " + currentPage + " / ";
 				document.getElementById("totalPages").innerText = " 总页数: " + Math.ceil(rows.length / pageSize);
+				
+				// 重新初始化长链接展开功能  
+    			setTimeout(initLongUrlToggle, 100);
 			}
 
+			function isTextTruncated(element) {  
+    			return element.scrollWidth > element.clientWidth;  
+			}  
+  
+			function toggleLongUrl(cell) {  
+    			if (cell.classList.contains('expanded')) {  
+        			cell.classList.remove('expanded');  
+        			cell.title = '点击展开完整内容';  
+    			} else {  
+        			cell.classList.add('expanded');  
+        			cell.title = '点击收起内容';  
+    			}  
+			}  
+  
+			function initLongUrlToggle() {  
+    			var longUrlCells = document.querySelectorAll('td:nth-child(1)');  
+    			longUrlCells.forEach(function(cell) {  
+        			// 检查文本是否被截断  
+        			if (isTextTruncated(cell)) {  
+            			cell.classList.add('truncated');  
+            			cell.title = '点击展开完整内容';  
+            			cell.onclick = function() {  
+                			toggleLongUrl(this);  
+            			};  
+        			} else {  
+            			// 短链接不添加任何交互  
+            			cell.title = '';  
+            			cell.onclick = null;  
+        			}  
+    			});  
+			}
 			window.onload = function() {
 				var savedPageSize = localStorage.getItem("pageSize");
 				if (savedPageSize) {
@@ -1488,6 +1564,8 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 				}
 				updatePageSizeSelect();
 				updateTablePagination();
+				// 初始化长链接展开功能  
+    			initLongUrlToggle();
 			};
 
 			function changePageSize() {
@@ -1702,7 +1780,7 @@ func renderAdminPage(w http.ResponseWriter, data []ApiRequest) {
 				<tbody>
 					{{range .}}
 					<tr>
-						<td data-field="LongUrl">{{.LongUrl}}</td>
+						<td data-field="LongUrl" title="点击可展开完整内容">{{.LongUrl}}</td>
 						<td>{{.ShortCode}}</td>
 						<td data-field="Password">{{.Password}}</td>
 						<td data-field="client_ip">{{.ClientIP}}</td>
