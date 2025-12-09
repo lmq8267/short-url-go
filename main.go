@@ -1772,6 +1772,43 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 				};
 			}
 		}
+		
+		var sortOrder = 'asc'; // 'asc' 或 'desc'  
+		function sortByLastUpdate() {  
+    		var table = document.getElementById("dataTable");  
+    		var tbody = table.getElementsByTagName("tbody")[0];  
+    		var rows = Array.from(tbody.getElementsByTagName("tr"));  
+      
+    		rows.sort(function(a, b) {  
+        		var dateA = a.getElementsByTagName("td")[7].innerText; // 最后更新时间在第8列  
+        		var dateB = b.getElementsByTagName("td")[7].innerText;  
+          
+        		if (!dateA) return 1;  
+        		if (!dateB) return -1;  
+          
+        		var timeA = new Date(dateA).getTime();  
+        		var timeB = new Date(dateB).getTime();  
+          
+        		if (sortOrder === 'asc') {  
+            		return timeA - timeB;  
+        		} else {  
+            		return timeB - timeA;  
+        		}  
+    		});  
+      
+    		// 清空tbody并重新添加排序后的行  
+    		tbody.innerHTML = '';  
+    		rows.forEach(function(row) {  
+        		tbody.appendChild(row);  
+    		});  
+      
+    		// 切换排序顺序并更新箭头  
+    		sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';  
+    		document.getElementById("sortArrow").innerText = sortOrder === 'asc' ? '↓' : '↑';  
+      
+    		// 重新应用分页  
+    		updateTablePagination();  
+		}
 		</script>
 	</head>
 	<body>
@@ -1788,7 +1825,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 						<th>到期时间</th>
 						<th>阅后即焚</th>
 						<th>类型</th>
-						<th>最后更新时间</th>
+						<th onclick="sortByLastUpdate()" style="cursor: pointer;">最后更新时间 <span id="sortArrow">↕</span></th>
 						<th>操作</th>
 					</tr>
 				</thead>
