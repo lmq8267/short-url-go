@@ -2898,15 +2898,7 @@ func runAsDaemon() {
 		if os.Getppid() != 1 {
 			cmd := exec.Command(os.Args[0], os.Args[1:]...)
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-			// 保留日志输出到文件，而不是完全丢弃  
-            if logDir != "" {  
-                logFile := filepath.Join(logDir, "shortener.log")  
-                logFd, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)  
-                if err == nil {  
-                    cmd.Stdout = logFd  
-                    cmd.Stderr = logFd  
-                }  
-            }
+			cmd.Stdout, cmd.Stderr, cmd.Stdin = nil, nil, nil
 			// 显式传递环境变量  
             cmd.Env = os.Environ()
 			err := cmd.Start()
