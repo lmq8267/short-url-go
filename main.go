@@ -3043,6 +3043,10 @@ func main() {
 		fmt.Println("Go Version:", runtime.Version())
 		return
 	}
+	
+	//设置日志处理文件
+	setupLogging(logDir)
+	
 	// 初始化Redis连接
 	redisConnected := initRedis(redisAddrFlag, redisUsernameFlag, redisPasswordFlag, redisPrefixFlag)
 
@@ -3109,8 +3113,7 @@ func main() {
 	} else {
 		storage = fileStorage
 	}
-	//设置日志处理文件
-	setupLogging(logDir)
+	
 	//初始统计数据文件
 	dataFilePath := filepath.Join(dataDir, "short_data.json")
 	initializeData(dataFilePath)
