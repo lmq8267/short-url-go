@@ -6,8 +6,6 @@ RUN go build
 
 FROM scratch
 COPY --from=builder /build/shortener /usr/bin/shortener
-# 创建数据目录
-RUN mkdir -p /usr/bin/short_data
   
 # 设置所有环境变量及其默认值
 ENV TZ=Asia/Shanghai
