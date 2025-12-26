@@ -14,6 +14,13 @@ on:
         default: false
         type: boolean
 
+env:
+  TZ: Asia/Shanghai
+
+permissions:
+  contents: write
+  actions: write
+
 jobs:
  shortener:
     strategy:
@@ -73,7 +80,7 @@ jobs:
       NAME: ${{ matrix.NAME }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 获取最新Go
         run: |
           latest_version=$(curl -L -k -s https://golang.org/dl/?mode=json | grep -m 1 -o '"version": "[^"]*' | sed 's/"version": "//' | tr -d 'go" ')
@@ -109,19 +116,43 @@ jobs:
           if [ "${GOos}" != "freebsd" ] && [ "${GOarch}" != "mips64" ] && [ "${GOarch}" != "mips64le" ] && [ "${GOarch}" != "ppc64le" ] && [ "${GOarch}" != "s390x" ]; then
              upx --lzma --best /opt/shortener-${NAME}
           fi
-      - name: 发布 
-        if: github.event.inputs.rel == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.c8 }}
-          body: |
-           > ### ![](https://img.shields.io/badge/%E7%BC%96%E8%AF%91%E6%97%B6%E9%97%B4-${{ env.build_time }}-8267?logo=github&labelColor=%E9%A1%BB)![](https://img.shields.io/github/downloads/${{ github.repository }}/${{ env.build_tag }}/total?label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0&logo=github)
-           
-          tag_name: ${{ env.build_tag }}
-          name: Version:${{ env.build_tag }}
-          files: /opt/shortener-${{ matrix.NAME }}
+          
       - name: 上传
         uses: actions/upload-artifact@v4
         with:
           name: shortener-${{ matrix.NAME }}
           path: /opt/shortener-${{ matrix.NAME }}
+
+ release:
+    name: 统一发布 Release
+    needs: shortener
+    runs-on: ubuntu-latest
+    if: github.event.inputs.rel == 'true'
+    steps:
+      - name: 下载所有编译产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: 整理文件
+        run: |
+          ls -R dist
+          mkdir -p release
+          find dist -type f -exec mv {} release/ \;
+          chmod +x release/*
+
+      - name: 设置版本信息
+        run: |
+          echo "build_time=$(date '+%Y年%m月%d日%H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
+          echo "build_tag=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ env.build_tag }}
+          name: Version:${{ env.build_tag }}
+          body: |
+            > ### ![](https://img.shields.io/badge/%E7%BC%96%E8%AF%91%E6%97%B6%E9%97%B4-${{ env.build_time }}-8267?logo=github&labelColor=%E9%A1%BB)![](https://img.shields.io/github/downloads/${{ github.repository }}/${{ env.build_tag }}/total?label=%E4%B8%8B%E8%BD%BD%E6%AC%A1%E6%95%B0&logo=github) 
+           
+          files: release/*
