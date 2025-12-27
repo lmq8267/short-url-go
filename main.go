@@ -2438,6 +2438,15 @@ td:first-child {
             			updateDeleteButton();  
         			}  
     			}, 100);
+				// 重置全选复选框状态  
+    			var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+    			if (selectAllCheckbox) {  
+        			selectAllCheckbox.checked = false;  
+    			}
+				// 检查当前页选中状态  
+    			if (multiSelectMode) {  
+        			updateSelectAllCheckbox();  
+    			}
 			}
 
 			function isTextTruncated(element) {  
@@ -2819,52 +2828,91 @@ function toggleMultiSelect() {
   
 // 全选当前页  
 function selectAll() {  
-	var checkboxes = document.querySelectorAll(".row-checkbox");  
-	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
-	checkboxes.forEach(function(checkbox) {  
-		if (checkbox.style.display !== "none") {  
-			checkbox.checked = true;  
-		}  
-	});  
-	selectAllCheckbox.checked = true;  
-	updateDeleteButton();  
+    var checkboxes = document.querySelectorAll("#dataTable tbody tr:not([style*='display: none']) .row-checkbox");  
+    var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+    checkboxes.forEach(function(checkbox) {  
+        if (checkbox.style.display !== "none") {  
+            checkbox.checked = true;  
+        }  
+    });  
+    selectAllCheckbox.checked = true;  
+    updateDeleteButton();  
 }  
   
-// 取消全选  
+// 取消全选当前页  
 function deselectAll() {  
-	var checkboxes = document.querySelectorAll(".row-checkbox");  
-	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
-	checkboxes.forEach(function(checkbox) {  
-		checkbox.checked = false;  
-	});  
-	selectAllCheckbox.checked = false;  
-	updateDeleteButton();  
-}  
+    var checkboxes = document.querySelectorAll("#dataTable tbody tr:not([style*='display: none']) .row-checkbox");  
+    var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+    checkboxes.forEach(function(checkbox) {  
+        checkbox.checked = false;  
+    });  
+    selectAllCheckbox.checked = false;  
+    updateDeleteButton();  
+}
+
+// 取消所有页面的选中  
+function deselectAllPages() {  
+    var checkboxes = document.querySelectorAll(".row-checkbox");  
+    var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+      
+    checkboxes.forEach(function(checkbox) {  
+        checkbox.checked = false;  
+    });  
+    selectAllCheckbox.checked = false;  
+    updateDeleteButton();  
+}
   
-// 切换全选状态  
+// 切换全选状态（当前页）  
 function toggleSelectAll() {  
-	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
-	var checkboxes = document.querySelectorAll(".row-checkbox");  
-	  
-	checkboxes.forEach(function(checkbox) {  
-		if (checkbox.style.display !== "none") {  
-			checkbox.checked = selectAllCheckbox.checked;  
-		}  
-	});  
-	updateDeleteButton();  
-}  
+    var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+    var checkboxes = document.querySelectorAll("#dataTable tbody tr:not([style*='display: none']) .row-checkbox");  
+      
+    checkboxes.forEach(function(checkbox) {  
+        if (checkbox.style.display !== "none") {  
+            checkbox.checked = selectAllCheckbox.checked;  
+        }  
+    });  
+    updateDeleteButton();  
+}
   
 // 更新删除选中按钮状态  
 function updateDeleteButton() {  
 	var checkboxes = document.querySelectorAll(".row-checkbox:checked");  
-	var deleteBtn = document.getElementById("deleteSelectedBtn");  
+	var deleteBtn = document.getElementById("deleteSelectedBtn");
+	var deselectAllPagesBtn = document.getElementById("deselectAllPagesBtn"); 
 	  
 	if (checkboxes.length > 0) {  
-		deleteBtn.disabled = false;  
+		deleteBtn.disabled = false;
+		deselectAllPagesBtn.disabled = false;
+		deleteBtn.textContent = "删除选中的 " + checkboxes.length + " 条";
 	} else {  
-		deleteBtn.disabled = true;  
+		deleteBtn.disabled = true;
+		deselectAllPagesBtn.disabled = true;
+		deleteBtn.textContent = "删除选中";
 	}  
-}  
+}
+
+// 检查当前页是否全选并更新表头复选框  
+function updateSelectAllCheckbox() {  
+    var currentPageCheckboxes = document.querySelectorAll("#dataTable tbody tr:not([style*='display: none']) .row-checkbox");  
+    var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+      
+    var allChecked = true;  
+    var anyChecked = false;  
+      
+    currentPageCheckboxes.forEach(function(checkbox) {  
+        if (checkbox.style.display !== "none") {  
+            if (checkbox.checked) {  
+                anyChecked = true;  
+            } else {  
+                allChecked = false;  
+            }  
+        }  
+    });  
+      
+    // 只有当前页全部选中时才勾选表头复选框  
+    selectAllCheckbox.checked = allChecked && anyChecked;  
+}
   
 // 显示确认弹窗  
 function showConfirmModal(title, message, onConfirm) {  
@@ -3046,6 +3094,7 @@ function scrollToTop() {
         			<div id="hiddenButtons" class="hidden-buttons">    
 						<!-- <button class="vue-btn vue-btn-success" onclick="selectAll()">全选</button> --> 
 						<!-- <button class="vue-btn vue-btn-warning" onclick="deselectAll()">取消全选</button> --> 
+						<button id="deselectAllPagesBtn" class="vue-btn vue-btn-warnin" onclick="deselectAllPages()" disabled>取消所有选中</button>
             			<button id="deleteSelectedBtn" class="vue-btn vue-btn-danger" onclick="deleteSelected()" disabled>删除选中</button>    
         			</div>    
     			</div>  
@@ -3075,7 +3124,7 @@ function scrollToTop() {
 					<tr>
 						<td>  
 							<div class="checkbox-wrapper">  
-								<input type="checkbox" class="custom-checkbox row-checkbox" value="{{.ShortCode}}" onchange="updateDeleteButton()">  
+								<input type="checkbox" class="custom-checkbox row-checkbox" value="{{.ShortCode}}" onchange="updateDeleteButton(); updateSelectAllCheckbox()">  
 							</div>  
 						</td>
 						<td data-field="LongUrl" title="点击可展开完整内容">{{.LongUrl}}</td>
