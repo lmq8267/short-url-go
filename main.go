@@ -1168,25 +1168,6 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		return
 	}
 
-	// 检查密码保护 - 重定向到认证页面
-	if apiReq.Password != "" {
-		// 检查查询参数中的密码
-		password := r.URL.Query().Get("password")
-		if password == "" {
-			// 如果是POST请求，尝试从表单获取
-			if r.Method == "POST" {
-				r.ParseForm()
-				password = r.FormValue("password")
-			}
-		}
-
-		if password != apiReq.Password {
-			// 密码错误或未提供，重定向到认证页面
-			http.Redirect(w, r, "/admin-auth", http.StatusSeeOther)
-			return
-		}
-	}
-
 	// 检查expiration字段
 	if apiReq.Expiration != "" {
 		// 解析expiration时间
@@ -2024,9 +2005,14 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 					for (j = 0; j < td.length; j++) {
 						td[j].classList.remove("highlight");
 					}
-					tr[i].style.display = "";
 				}
 				if (filter === "") {
+					// 清空搜索时：先隐藏所有行，然后应用分页  
+        			for (i = 1; i < tr.length; i++) {  
+            			tr[i].style.display = "none";  
+        			} 
+        			// 保持当前页数和每页显示数量，重新应用分页  
+        			updateTablePagination();  
 					return;
 				}
 				for (i = 1; i < tr.length; i++) {
@@ -2150,6 +2136,8 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 			function deleteRow(shortcode) {
 				if (confirm("确定要删除此项吗？")) {
 					showLoading();
+					var deleteBtn = event.target;  
+        			var row = deleteBtn.closest('tr');
 					var xhr = new XMLHttpRequest();
 					xhr.open("POST", "/admin?mode=delete", true);
 					xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -2159,11 +2147,15 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 						hideLoading();
 						if (xhr.status === 200) {
 						   if (xhr.responseText.includes('删除成功')) {
+						   	  // 成功：移除行并更新统计  
+                    		  row.style.display = 'none'; // 先隐藏  
+                    		  setTimeout(function() {  
+                        			row.remove(); // 然后移除  
+                    		  }, 100);
 						      alert('删除成功');
 						   } else {
 						      alert('删除失败');
 						   }
-							location.reload();
 						}
 					};
 					xhr.onerror = function() {  
@@ -2229,6 +2221,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 		function submitEdit(row) {
 			var cells = row.getElementsByTagName("td");
 			var data = {};
+			var originalValues = {};
 			for (var i = 0; i < cells.length; i++) {
 				if (i < cells.length - 1) { // 跳过最后一列（操作按钮）
 					var field = cells[i].getAttribute("data-field");
@@ -2268,11 +2261,23 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 				hideLoading();
 				if (xhr.status === 200) {
 				   if (xhr.responseText.includes('修改成功')) {
+				   	  // 成功：更新这一行的显示内容  
+                	for (var i = 0; i < cells.length - 1; i++) {  
+                    	var field = cells[i].getAttribute("data-field");  
+                    	if (field) {  
+                        	var input = cells[i].querySelector("input, textarea, select");  
+                        	cells[i].innerHTML = input.value;  
+                        	cells[i].setAttribute("data-original", input.value);  
+                    	}  
+                	}  
+                	// 恢复编辑按钮状态  
+                	row.querySelector("button.edit").style.display = "inline-block";  
+               		 row.querySelector("button.submit").style.display = "none";  
+                	row.classList.remove("editing");
 				      alert('修改成功');
 				   } else {
 				      alert('修改失败');
 				   }
-					location.reload();
 				}
 			};
 			xhr.onerror = function() {  
@@ -2899,6 +2904,7 @@ func runAsDaemon() {
 			cmd := exec.Command(os.Args[0], os.Args[1:]...)
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 			cmd.Stdout, cmd.Stderr, cmd.Stdin = nil, nil, nil
+			
 			// 显式传递环境变量  
             cmd.Env = os.Environ()
 			err := cmd.Start()
