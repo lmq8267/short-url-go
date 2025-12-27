@@ -22,7 +22,8 @@
 ### 预览
 ![](./image/UI预览.png)
 
-<img width="1857" height="858" alt="image" src="https://github.com/user-attachments/assets/7d96ec13-2033-4878-af8a-4e3206f424ab" />
+<img width="1881" height="845" alt="image" src="https://github.com/user-attachments/assets/ce9ec137-4273-4709-9ec9-dc8c45575c2c" />
+
 
 
 ### 参数
