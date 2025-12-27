@@ -22,6 +22,9 @@
 ### 预览
 ![](./image/UI预览.png)
 
+<img width="1857" height="858" alt="image" src="https://github.com/user-attachments/assets/7d96ec13-2033-4878-af8a-4e3206f424ab" />
+
+
 ### 参数
 ```bash
 -p [端口号]              监听指定端口号,默认8080                              环境变量：SHORT_PORT
