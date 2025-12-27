@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"compress/gzip"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -144,6 +145,15 @@ type Storage interface {
 // 本地文件存储实现
 type FileStorage struct {
 	dataDir string
+}
+
+type gzipResponseWriter struct {  
+    http.ResponseWriter  
+    writer *gzip.Writer  
+}  
+  
+func (w gzipResponseWriter) Write(b []byte) (int, error) {  
+    return w.writer.Write(b)  
 }
 
 func NewFileStorage(dataDir string) *FileStorage {
@@ -381,19 +391,18 @@ func (hs *HybridStorage) SaveRule(code string, req ApiRequest) error {
     return nil  
 }
 
-func (hs *HybridStorage) LoadRule(code string) (ApiRequest, bool, error) {
-	if redisEnabled {
-		// Redis可用时，从Redis读取
-		req, found, err := hs.redis.LoadRule(code)
-		if err != nil {
-			log.Printf("Redis读取失败: %v，回退到本地short_data文件存储", err)
-			// Redis读取失败时，回退到本地文件
-			return hs.file.LoadRule(code)
-		}
-		return req, found, nil
-	}
-	// Redis不可用时，从本地文件读取
-	return hs.file.LoadRule(code)
+func (hs *HybridStorage) LoadRule(code string) (ApiRequest, bool, error) {  
+    // 优先从本地文件读取  
+    req, found, err := hs.file.LoadRule(code)  
+    if err != nil {  
+        log.Printf("本地文件读取失败: %v，回退到Redis", err)  
+        // 本地失败时，回退到Redis  
+        if redisEnabled {  
+            return hs.redis.LoadRule(code)  
+        }  
+        return req, found, err  
+    }  
+    return req, found, nil  
 }
 
 func (hs *HybridStorage) DeleteRule(code string) error {  
@@ -423,12 +432,12 @@ func (hs *HybridStorage) DeleteRule(code string) error {
 
 func (hs *HybridStorage) ListRules() ([]ApiRequest, error) {
 	if redisEnabled {
-		// Redis可用时，从Redis获取列表
-		rules, err := hs.redis.ListRules()
+		// 优先从从本地数据目录获取
+		rules, err := hs.file.ListRules()
 		if err != nil {
-			log.Printf("Redis列表获取失败: %v，回退到本地short_data文件存储", err)
-			// Redis失败时，回退到本地文件
-			return hs.file.ListRules()
+			log.Printf("本地文件列表获取失败: %v，回退到Redis", err)
+			// 本地文件失败时，回退到Redis
+			return hs.redis.ListRules()
 		}
 		return rules, nil
 	}
@@ -464,19 +473,18 @@ func (hs *HybridStorage) SaveStats(data Data) error {
 	return hs.file.SaveStats(data)
 }
 
-func (hs *HybridStorage) LoadStats() (Data, error) {
-	if redisEnabled {
-		// Redis可用时，从Redis读取
-		stats, err := hs.redis.LoadStats()
-		if err != nil {
-			log.Printf("Redis读取统计数据失败: %v，回退到本地short_data文件存储", err)
-			// Redis读取失败时，回退到本地文件
-			return hs.file.LoadStats()
-		}
-		return stats, nil
-	}
-	// Redis不可用时，从本地文件读取
-	return hs.file.LoadStats()
+func (hs *HybridStorage) LoadStats() (Data, error) {  
+    // 优先从本地文件读取  
+    stats, err := hs.file.LoadStats()  
+    if err != nil {  
+        log.Printf("本地统计数据读取失败: %v，回退到Redis", err)  
+        // 本地失败时，回退到Redis  
+        if redisEnabled {  
+            return hs.redis.LoadStats()  
+        }  
+        return stats, err  
+    }  
+    return stats, nil  
 }
 
 // 全局存储实例
@@ -1020,30 +1028,29 @@ func apiHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// 修改后的统计数据获取函数 - 优先Redis
-func loadStatsWithPriority() (Data, error) {
-	if redisEnabled {
-		// 优先从Redis获取统计数据
-		redisStorage := NewRedisStorage(redisPrefix)
-		stats, err := redisStorage.LoadStats()
-		if err == nil {
-			// log.Printf("从Redis获取统计数据成功: 后缀已使用=%d, 总转址数=%d", stats.TotalRules, stats.TotalVisits)
-			return stats, nil
-		} else {
-			log.Printf("从Redis获取统计数据失败: %v，回退到本地文件", err)
-		}
-	}
-
-	// Redis不可用或失败时，使用本地文件
-	fileStorage := NewFileStorage(dataDir)
-	stats, err := fileStorage.LoadStats()
-	if err != nil {
-		log.Printf("从本地文件获取统计数据失败: %v", err)
-		return Data{}, err
-	}
-
-	// log.Printf("从本地文件获取统计数据: 后缀已使用=%d, 总转址数=%d", stats.TotalRules, stats.TotalVisits)
-	return stats, nil
+// 统计数据获取函数
+func loadStatsWithPriority() (Data, error) {  
+    // 优先从本地文件获取统计数据  
+    fileStorage := NewFileStorage(dataDir)  
+    stats, err := fileStorage.LoadStats()  
+    if err == nil {  
+        return stats, nil  
+    } else {  
+        log.Printf("从本地文件获取统计数据失败: %v，回退到Redis", err)  
+    }  
+  
+    // 本地不可用或失败时，使用Redis  
+    if redisEnabled {  
+        redisStorage := NewRedisStorage(redisPrefix)  
+        stats, err := redisStorage.LoadStats()  
+        if err == nil {  
+            return stats, nil  
+        } else {  
+            log.Printf("从Redis获取统计数据失败: %v", err)  
+        }  
+    }  
+  
+    return Data{}, err  
 }
 
 // 同步完成后重新统计并更新total_rules
@@ -1096,6 +1103,16 @@ func updateTotalRulesAfterSync() {
 	}
 }
 
+func getHost(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+const ogImageBase64 = "data:image/jpeg;base64,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"
+
 // 默认首页HTML文件
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	// 使用新的优先Redis的统计获取逻辑
@@ -1120,6 +1137,18 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	htmlString = strings.ReplaceAll(htmlString, "{{todayvisits}}", strconv.Itoa(data.TodayVisits))
 	htmlString = strings.ReplaceAll(htmlString, "修改为你的邮箱", data.Email)
 	htmlString = strings.ReplaceAll(htmlString, "my-img.jpeg", data.Img)
+
+	// 使用base64图片作为og:image  
+    htmlString = strings.ReplaceAll(htmlString, "<head>",   
+        `<head>  
+        <meta property="og:title" content="简短分享 - 长网址缩短，文本分享，Html单页分享">  
+        <meta property="og:description" content="免费的短链接生成服务，支持长网址缩短、文本分享、HTML单页分享">  
+        <meta property="og:type" content="website">  
+        <meta property="og:url" content="`+getHost(r)+`">  
+        <meta property="og:image" content="`+ogImageBase64+`">  
+        <meta property="og:image:width" content="431">  
+        <meta property="og:image:height" content="357">  
+        <meta property="og:site_name" content="简短分享">`)
 
 	// 将网页数据响应给客户端
 	w.Header().Set("Content-Type", "text/html")
@@ -1305,16 +1334,40 @@ func shortHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 			http.Redirect(w, r, apiReq.LongUrl, http.StatusFound)
 			return
 		}
+		// 在现有HTML内容中追加OG标签  
+    	htmlContent := apiReq.LongUrl
+		// 查找head标签并插入OG meta标签  
+    	ogTags := `  
+    	<meta property="og:title" content="分享内容 - ` + apiReq.ShortCode + `">  
+    	<meta property="og:description" content="通过简短分享生成的内容">  
+    	<meta property="og:type" content="website">  
+    	<meta property="og:url" content="` + getHost(r) + `/` + apiReq.ShortCode + `">  
+    	<meta property="og:image" content="` + ogImageBase64 + `">  
+    	<meta property="og:site_name" content="简短分享">`  
+      
+    	// 在<head>标签后插入OG标签  
+    	htmlContent = strings.Replace(htmlContent, "<head>", "<head>"+ogTags, 1)
+		
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(apiReq.LongUrl))
+		w.Write([]byte(htmlContent))
 	case "page":
 		htmlContent, err := content.ReadFile("static/page.html")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		responseHtml := strings.Replace(string(htmlContent), "{长内容}", apiReq.LongUrl, -1)
+		// 追加OG标签到模板文件  
+    	ogTags := `  
+    	<meta property="og:title" content="分享页面 - ` + apiReq.ShortCode + `">  
+    	<meta property="og:description" content="通过简短分享生成的页面内容">  
+    	<meta property="og:type" content="website">  
+    	<meta property="og:url" content="` + getHost(r) + `/` + apiReq.ShortCode + `">  
+    	<meta property="og:image" content="` + ogImageBase64 + `">  
+    	<meta property="og:site_name" content="简短分享">`
+
+		responseHtml := strings.Replace(string(htmlContent), "<head>", "<head>"+ogTags, 1)
+		responseHtml = strings.Replace(responseHtml, "{长内容}", apiReq.LongUrl, -1)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(responseHtml))
@@ -1614,7 +1667,13 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		http.Error(w, "错误：连续输错次数太多啦，请休息一会儿后再试吧！", http.StatusForbidden)
 		return
 	}
-
+	// 检查客户端是否支持gzip  
+    if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {  
+        w.Header().Set("Content-Encoding", "gzip")  
+        gz := gzip.NewWriter(w)  
+        defer gz.Close()  
+        w = gzipResponseWriter{ResponseWriter: w, writer: gz}  
+    }
 	// 处理清理日志请求
 	if r.Method == http.MethodPost && r.FormValue("mode") == "del-log" {
 		if logDir != "" {
@@ -1653,6 +1712,86 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		w.Write([]byte("删除成功"))
 		return
 	}
+
+	// 处理批量删除请求  
+if r.Method == http.MethodPost && r.FormValue("mode") == "batch-delete" {  
+	shortCodes := r.FormValue("shortcodes")  
+	if shortCodes == "" {  
+		http.Error(w, "错误：缺少必要的参数", http.StatusBadRequest)  
+		return  
+	}  
+  
+	codeList := strings.Split(shortCodes, ",")  
+	successCount := 0  
+	failCount := 0  
+  
+	for _, code := range codeList {  
+		if code == "" {  
+			continue  
+		}  
+		err := storage.DeleteRule(strings.TrimSpace(code))  
+		if err != nil {  
+			log.Printf("删除规则 %s 失败: %v", code, err)  
+			failCount++  
+		} else {  
+			successCount++  
+		}  
+	}  
+  
+	// 删除成功后更新total_rules统计  
+	if successCount > 0 {  
+		updateTotalRulesAfterSync()  
+	}  
+  
+	w.WriteHeader(http.StatusOK)  
+	w.Write([]byte(fmt.Sprintf("批量删除完成：成功 %d 个，失败 %d 个", successCount, failCount)))  
+	return  
+}  
+  
+// 处理删除过期请求  
+if r.Method == http.MethodPost && r.FormValue("mode") == "delete-expired" {  
+	allData, err := storage.ListRules()  
+	if err != nil {  
+		http.Error(w, fmt.Sprintf("无法读取规则数据：%v", err), http.StatusInternalServerError)  
+		return  
+	}  
+  
+	now := time.Now()  
+	successCount := 0  
+	failCount := 0  
+  
+	for _, rule := range allData {  
+		if rule.Expiration != "" && rule.Expiration != "null" {  
+			expirationTime, err := time.Parse("2006-01-02 15:04:05", rule.Expiration)  
+			if err != nil {  
+				// 尝试其他时间格式  
+				expirationTime, err = time.Parse(time.RFC3339, rule.Expiration)  
+				if err != nil {  
+					continue  
+				}  
+			}  
+			  
+			if expirationTime.Before(now) {  
+				err := storage.DeleteRule(rule.ShortCode)  
+				if err != nil {  
+					log.Printf("删除过期规则 %s 失败: %v", rule.ShortCode, err)  
+					failCount++  
+				} else {  
+					successCount++  
+				}  
+			}  
+		}  
+	}  
+  
+	// 删除成功后更新total_rules统计  
+	if successCount > 0 {  
+		updateTotalRulesAfterSync()  
+	}  
+  
+	w.WriteHeader(http.StatusOK)  
+	w.Write([]byte(fmt.Sprintf("删除过期完成：成功删除 %d 个，失败 %d 个", successCount, failCount)))  
+	return  
+}
 
 	// 处理编辑请求 - 使用混合存储优先保存到Redis
 	if r.Method == http.MethodPost && r.FormValue("mode") == "edit" {
@@ -1705,7 +1844,7 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		return
 	}
 
-	// 使用混合存储优先读取Redis数据
+	// 使用混合存储优先读取本地数据
 	allData, err := storage.ListRules()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("无法读取规则数据：%v", err), http.StatusInternalServerError)
@@ -1715,14 +1854,6 @@ func adminHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 	// 生成HTML响应
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	renderAdminPage(w, r, allData)
-}
-
-func getHost(r *http.Request) string {
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	return scheme + "://" + r.Host
 }
 
 // 生成/admin页面的HTML响应
@@ -1763,7 +1894,8 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
     			background-color: #fff;  
     			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  
     			border-radius: 8px;  
-    			overflow-x: auto;  
+    			overflow-x: auto;
+				max-width: 100vw; /* 防止超出视窗宽度 */
 			}
 			input[type="text"], textarea {
 				padding: 10px;
@@ -1809,7 +1941,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
-			td:nth-child(1) {  
+			td:nth-child(2) {  
     			width: 300px;  
     			max-width: 300px;  
     			white-space: nowrap;  
@@ -1818,18 +1950,18 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
     			word-wrap: break-word;  
     			word-break: break-all;  
 			}  
-			td:nth-child(1).truncated {  
+			td:nth-child(2).truncated {  
     			cursor: pointer;  
     			color: #007bff;  
     			text-decoration: underline;  
     			transition: all 0.3s ease;  
 			}  
-			td:nth-child(1).truncated:hover {  
+			td:nth-child(2).truncated:hover {  
     			color: #0056b3;  
    				background-color: #f0f8ff;  
 			}  
-			td:nth-child(1).expanded {  
-    			white-space: normal;  
+			td:nth-child(2).expanded {  
+    			white-space: pre-wrap; /* 保留换行和空格 */
     			max-width: none;  
     			cursor: pointer;  
 				color: #000; /* 展开后恢复黑色 */
@@ -1862,7 +1994,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 					min-width: fit-content;
     			}  
     			table {  
-        			min-width: 800px;  
+        			min-width: 900px;  
         			font-size: 14px;  
     			}  
     			th, td {  
@@ -1992,6 +2124,239 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
     0% { transform: rotate(0deg); }  
     100% { transform: rotate(360deg); }  
 }
+.search-button-group {    
+    display: flex !important;    
+    justify-content: space-between !important;    
+    align-items: center !important;    
+    margin: 8px 0 !important;    
+    flex-wrap: nowrap !important;    
+}  
+  
+.search-input {    
+    width: 100% !important;  /* 占用剩余所有空间 */  
+    max-width: 900px !important;  /* 设置最大宽度限制 */  
+    min-width: 200px !important;  /* 设置最小宽度 */  
+    padding: 8px 12px;    
+    border: 1px solid #ddd;    
+    border-radius: 6px;    
+    font-size: 14px;    
+    outline: none;    
+    transition: border-color 0.3s ease;    
+    flex: 1;  /* 关键：让搜索框占用剩余空间 */  
+}  
+  
+.button-group {  
+    display: flex !important;  
+    gap: 8px;  
+    margin: 0 !important;  
+    flex-wrap: nowrap !important;  
+    align-items: center !important;  
+    flex-shrink: 0;  /* 防止按钮组被压缩 */  
+}
+  
+.vue-btn {  
+	padding: 8px 16px;  
+	border: none;  
+	border-radius: 6px;  
+	font-size: 14px;  
+	font-weight: 500;  
+	cursor: pointer;  
+	transition: all 0.3s ease;  
+	outline: none;  
+	position: relative;  
+	overflow: hidden;  
+}  
+  
+.vue-btn:disabled {  
+	opacity: 0.5;  
+	cursor: not-allowed;  
+	transform: none !important;  
+}  
+  
+.vue-btn-primary {  
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);  
+	color: white;  
+}  
+  
+.vue-btn-primary:hover:not(:disabled) {  
+	transform: translateY(-2px);  
+	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);  
+}  
+  
+.vue-btn-success {  
+	background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);  
+	color: #2c5f2d;  
+}  
+  
+.vue-btn-success:hover:not(:disabled) {  
+	transform: translateY(-2px);  
+	box-shadow: 0 4px 12px rgba(132, 250, 176, 0.4);  
+}  
+  
+.vue-btn-danger {  
+	background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);  
+	color: white;  
+}  
+  
+.vue-btn-danger:hover:not(:disabled) {  
+	transform: translateY(-2px);  
+	box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);  
+}  
+  
+.vue-btn-warning {  
+	background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);  
+	color: #7a4f01;  
+}  
+  
+.vue-btn-warning:hover:not(:disabled) {  
+	transform: translateY(-2px);  
+	box-shadow: 0 4px 12px rgba(250, 112, 154, 0.4);  
+}  
+  
+/* 复选框样式 */  
+.checkbox-wrapper {  
+	display: flex;  
+	align-items: center;  
+	justify-content: center;  
+}  
+  
+.custom-checkbox {  
+	width: 18px;  
+	height: 18px;  
+	cursor: pointer;  
+	position: relative;  
+}  
+  
+.custom-checkbox:checked {  
+	accent-color: #667eea;  
+}  
+  
+/* Vue样式弹窗 */  
+.vue-modal {  
+	display: none;  
+	position: fixed;  
+	top: 0;  
+	left: 0;  
+	width: 100%;  
+	height: 100%;  
+	background: rgba(0, 0, 0, 0.5);  
+	z-index: 9999;  
+	animation: fadeIn 0.3s ease;  
+}  
+  
+.vue-modal.show {  
+	display: flex;  
+	justify-content: center;  
+	align-items: center;  
+}  
+  
+.vue-modal-content {  
+	background: white;  
+	border-radius: 12px;  
+	padding: 24px;  
+	max-width: 400px;  
+	width: 90%;  
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);  
+	animation: slideUp 0.3s ease;  
+	position: relative;  
+}  
+  
+.vue-modal-header {  
+	font-size: 18px;  
+	font-weight: 600;  
+	color: #2c3e50;  
+	margin-bottom: 16px;  
+	text-align: center;  
+}  
+  
+.vue-modal-body {  
+	font-size: 14px;  
+	color: #5a6c7d;  
+	line-height: 1.6;  
+	margin-bottom: 24px;  
+	text-align: center;  
+}  
+  
+.vue-modal-footer {  
+	display: flex;  
+	gap: 12px;  
+	justify-content: center;  
+}  
+  
+@keyframes fadeIn {  
+	from { opacity: 0; }  
+	to { opacity: 1; }  
+}  
+  
+@keyframes slideUp {  
+	from {   
+		opacity: 0;  
+		transform: translateY(30px);  
+	}  
+	to {   
+		opacity: 1;  
+		transform: translateY(0);  
+	}  
+}  
+  
+/* 隐藏的按钮组 */  
+.hidden-buttons {  
+	display: none;  
+}  
+  
+.hidden-buttons.show {  
+	display: flex;  
+}
+/* 复选框列样式 */  
+th:first-child,  
+td:first-child {  
+    width: 50px !important;  
+    min-width: 50px !important;  
+    max-width: 50px !important;  
+    text-align: center;  
+    padding: 8px !important;  
+    display: none; /* 默认隐藏整个列 */  
+}  
+/* 多选模式下显示复选框列 */  
+.multi-select-mode th:first-child,  
+.multi-select-mode td:first-child {  
+    display: table-cell; /* 多选模式下显示 */  
+}  
+
+.checkbox-wrapper {    
+    display: flex;    
+    align-items: center;    
+    justify-content: center;    
+}
+.back-to-top-btn {  
+    position: fixed;  
+    bottom: 30px;  
+    right: 30px;  
+    padding: 12px 20px;  
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);  
+    color: white;  
+    border: none;  
+    border-radius: 6px;  /* 改为6px，与其他Vue按钮一致 */  
+    cursor: pointer;  
+    display: none;  
+    align-items: center;  
+    justify-content: center;  
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);  
+    transition: all 0.3s ease;  
+    z-index: 1000;  
+    font-size: 16px;  
+    font-weight: 600;  
+    white-space: nowrap;  
+}
+  
+.back-to-top-btn:hover {  
+    transform: translateY(-2px);  
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);  
+}  
+  
+.back-to-top-btn.show {  
+    display: flex;  
+}
 		</style>
 		<script>
 			function searchTable() {
@@ -2065,8 +2430,14 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 				document.getElementById("currentPage").innerText = " 当前页: " + currentPage + " / ";
 				document.getElementById("totalPages").innerText = " 总页数: " + Math.ceil(rows.length / pageSize);
 				
-				// 重新初始化长链接展开功能  
-    			setTimeout(initLongUrlToggle, 100);
+				// 重新初始化长链接展开功能    
+    			setTimeout(function() {  
+        			initLongUrlToggle();  
+        			// 如果在多选模式，也要更新复选框状态  
+        			if (multiSelectMode) {  
+            			updateDeleteButton();  
+        			}  
+    			}, 100);
 			}
 
 			function isTextTruncated(element) {  
@@ -2081,10 +2452,10 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
         			cell.classList.add('expanded');  
         			cell.title = '点击收起内容';  
     			}  
-			}  
+			}
   
 			function initLongUrlToggle() {  
-    			var longUrlCells = document.querySelectorAll('td:nth-child(1)');  
+    			var longUrlCells = document.querySelectorAll('td:nth-child(2)');  
     			longUrlCells.forEach(function(cell) {  
         			// 检查文本是否被截断  
         			if (isTextTruncated(cell)) {  
@@ -2100,17 +2471,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
         			}  
     			});  
 			}
-			window.onload = function() {
-				var savedPageSize = localStorage.getItem("pageSize");
-				if (savedPageSize) {
-					pageSize = parseInt(savedPageSize);
-				}
-				updatePageSizeSelect();
-				updateTablePagination();
-				// 初始化长链接展开功能  
-    			initLongUrlToggle();
-			};
-
+			
 			function changePageSize() {
 				var select = document.getElementById("pageSizeSelect");
 				pageSize = parseInt(select.value);
@@ -2196,7 +2557,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
                                         '<option value="text" ' + (cells[i].innerText === "text" ? "selected" : "") + '>txt文本</option>';
                 } else {
                     input = document.createElement("textarea");
-                    input.value = cells[i].innerText;
+                    input.value = cells[i].textContent;
                 }
                 input.className = "editable";
                 input.oninput = function() { adjustTextAreaHeight(this); };
@@ -2266,7 +2627,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
                     	var field = cells[i].getAttribute("data-field");  
                     	if (field) {  
                         	var input = cells[i].querySelector("input, textarea, select");  
-                        	cells[i].innerHTML = input.value;  
+                        	cells[i].textContent = input.value;  
                         	cells[i].setAttribute("data-original", input.value);  
                     	}  
                 	}  
@@ -2292,7 +2653,7 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
 				if (i < cells.length - 1) { // 跳过最后一列（操作按钮）
 					var field = cells[i].getAttribute("data-field");
 					if (field) {
-						cells[i].innerHTML = cells[i].querySelector("input, textarea, select").value;
+						cells[i].textContent = cells[i].querySelector("input, textarea, select").value;
 					}
 				}
 			}
@@ -2344,8 +2705,8 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
     		var rows = Array.from(tbody.getElementsByTagName("tr"));  
       
     		rows.sort(function(a, b) {  
-        		var dateA = a.getElementsByTagName("td")[7].innerText; // 最后更新时间在第8列  
-        		var dateB = b.getElementsByTagName("td")[7].innerText;  
+        		var dateA = a.getElementsByTagName("td")[8].innerText; // 最后更新时间在第9列索引8  
+        		var dateB = b.getElementsByTagName("td")[8].innerText;  
           
         		if (!dateA) return 1;  
         		if (!dateB) return -1;  
@@ -2373,6 +2734,44 @@ func renderAdminPage(w http.ResponseWriter, r *http.Request, data []ApiRequest) 
     		// 重新应用分页  
     		updateTablePagination();  
 		}
+		var expirationSortOrder = 'asc'; // 'asc' 或 'desc'  
+  
+function sortByExpiration() {  
+    var table = document.getElementById("dataTable");  
+    var tbody = table.getElementsByTagName("tbody")[0];  
+    var rows = Array.from(tbody.getElementsByTagName("tr"));  
+      
+    rows.sort(function(a, b) {  
+        var dateA = a.getElementsByTagName("td")[5].innerText; // 到期时间在第6列 索引5  
+        var dateB = b.getElementsByTagName("td")[5].innerText;  
+          
+        // 空值处理：将空值放在最后  
+        if (!dateA || dateA.trim() === '') return 1;  
+        if (!dateB || dateB.trim() === '') return -1;  
+          
+        var timeA = new Date(dateA).getTime();  
+        var timeB = new Date(dateB).getTime();  
+          
+        if (expirationSortOrder === 'asc') {  
+            return timeA - timeB; // 升序：最旧的最新依次往下  
+        } else {  
+            return timeB - timeA; // 降序：最新到最旧依次往下  
+        }  
+    });  
+      
+    // 清空tbody并重新添加排序后的行  
+    tbody.innerHTML = '';  
+    rows.forEach(function(row) {  
+        tbody.appendChild(row);  
+    });  
+      
+    // 切换排序顺序并更新箭头  
+    expirationSortOrder = expirationSortOrder === 'asc' ? 'desc' : 'asc';  
+    document.getElementById("expirationSortArrow").innerText = expirationSortOrder === 'asc' ? '↓' : '↑';  
+      
+    // 重新应用分页  
+    updateTablePagination();  
+}
 		function showLoading() {  
     var popup = document.getElementById("loadingPopup");  
     popup.style.display = "flex";  
@@ -2382,20 +2781,289 @@ function hideLoading() {
     var popup = document.getElementById("loadingPopup");  
     popup.style.display = "none";  
 }
+// 多选功能相关变量  
+var multiSelectMode = false;  
+  
+// 切换多选模式  
+function toggleMultiSelect() {  
+	multiSelectMode = !multiSelectMode;  
+	var table = document.getElementById("dataTable");
+	var hiddenButtons = document.getElementById("hiddenButtons");  
+	var multiSelectText = document.getElementById("multiSelectText");  
+	var checkboxes = document.querySelectorAll(".row-checkbox");  
+	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+	  
+	if (multiSelectMode) {  
+		table.classList.add("multi-select-mode");  
+		hiddenButtons.classList.add("show");  
+		multiSelectText.textContent = "关闭多选";  
+		// 显示所有复选框  
+		checkboxes.forEach(function(checkbox) {  
+			checkbox.style.display = "block";  
+		});  
+		selectAllCheckbox.style.display = "block";  
+	} else { 
+		table.classList.remove("multi-select-mode");
+		hiddenButtons.classList.remove("show");  
+		multiSelectText.textContent = "启用多选";  
+		// 隐藏所有复选框并取消选中  
+		checkboxes.forEach(function(checkbox) {  
+			checkbox.style.display = "none";  
+			checkbox.checked = false;  
+		});  
+		selectAllCheckbox.style.display = "none";  
+		selectAllCheckbox.checked = false;  
+		updateDeleteButton();  
+	}  
+}  
+  
+// 全选当前页  
+function selectAll() {  
+	var checkboxes = document.querySelectorAll(".row-checkbox");  
+	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+	checkboxes.forEach(function(checkbox) {  
+		if (checkbox.style.display !== "none") {  
+			checkbox.checked = true;  
+		}  
+	});  
+	selectAllCheckbox.checked = true;  
+	updateDeleteButton();  
+}  
+  
+// 取消全选  
+function deselectAll() {  
+	var checkboxes = document.querySelectorAll(".row-checkbox");  
+	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+	checkboxes.forEach(function(checkbox) {  
+		checkbox.checked = false;  
+	});  
+	selectAllCheckbox.checked = false;  
+	updateDeleteButton();  
+}  
+  
+// 切换全选状态  
+function toggleSelectAll() {  
+	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+	var checkboxes = document.querySelectorAll(".row-checkbox");  
+	  
+	checkboxes.forEach(function(checkbox) {  
+		if (checkbox.style.display !== "none") {  
+			checkbox.checked = selectAllCheckbox.checked;  
+		}  
+	});  
+	updateDeleteButton();  
+}  
+  
+// 更新删除选中按钮状态  
+function updateDeleteButton() {  
+	var checkboxes = document.querySelectorAll(".row-checkbox:checked");  
+	var deleteBtn = document.getElementById("deleteSelectedBtn");  
+	  
+	if (checkboxes.length > 0) {  
+		deleteBtn.disabled = false;  
+	} else {  
+		deleteBtn.disabled = true;  
+	}  
+}  
+  
+// 显示确认弹窗  
+function showConfirmModal(title, message, onConfirm) {  
+	var modal = document.getElementById("confirmModal");  
+	var modalTitle = document.getElementById("modalTitle");  
+	var modalMessage = document.getElementById("modalMessage");  
+	var confirmBtn = document.getElementById("modalConfirmBtn");  
+	  
+	modalTitle.textContent = title;  
+	modalMessage.textContent = message;  
+	  
+	// 移除之前的事件监听器  
+	var newConfirmBtn = confirmBtn.cloneNode(true);  
+	confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);  
+	  
+	// 添加新的事件监听器  
+	newConfirmBtn.addEventListener("click", function() {  
+		onConfirm();  
+		closeModal();  
+	});  
+	  
+	modal.classList.add("show");  
+}  
+  
+// 关闭弹窗  
+function closeModal() {  
+	var modal = document.getElementById("confirmModal");  
+	modal.classList.remove("show");  
+}  
+  
+// 删除过期项目  
+function deleteExpired() {  
+	showConfirmModal(  
+		"删除过期项目",  
+		"确定要删除所有已过期的项目吗？此操作不可恢复！",  
+		function() {  
+			showLoading();  
+			var xhr = new XMLHttpRequest();  
+			xhr.open("POST", "/admin?mode=delete-expired", true);  
+			xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");  
+			xhr.send();  
+			xhr.onload = function() {  
+				hideLoading();  
+				if (xhr.status === 200) {  
+					// 获取所有过期的行并移除  
+                    var rows = document.querySelectorAll("#dataTable tbody tr");  
+                    rows.forEach(function(row) {  
+                        var expirationCell = row.getElementsByTagName("td")[5];  
+                        if (expirationCell) {  
+                            var expirationText = expirationCell.innerText;  
+                            if (expirationText && expirationText !== "") {  
+                                var expirationTime = new Date(expirationText);  
+                                if (expirationTime < new Date()) {  
+                                    row.style.display = 'none';  
+                                    setTimeout(function() {  
+                                        row.remove();  
+                                    }, 100);  
+                                }  
+                            }  
+                        }  
+                    });  
+                    updateTablePagination();  
+                    alert(xhr.responseText);  
+				} else {  
+					alert("删除过期项目失败");  
+				}  
+			};  
+			xhr.onerror = function() {  
+				hideLoading();  
+				alert("网络错误，操作失败");  
+			};  
+		}  
+	);  
+}  
+  
+// 删除选中项目  
+function deleteSelected() {  
+	var checkboxes = document.querySelectorAll(".row-checkbox:checked");  
+	if (checkboxes.length === 0) {  
+		alert("请先选择要删除的项目");  
+		return;  
+	}  
+	  
+	var shortCodes = [];  
+    var rowsToRemove = [];  
+    checkboxes.forEach(function(checkbox) {  
+        shortCodes.push(checkbox.value);  
+        rowsToRemove.push(checkbox.closest('tr'));  
+    });  
+	  
+	showConfirmModal(  
+		"删除选中项目",  
+		"确定要删除选中的 " + checkboxes.length + " 个项目吗？此操作不可恢复！",  
+		function() {  
+			showLoading();  
+			var xhr = new XMLHttpRequest();  
+			xhr.open("POST", "/admin?mode=batch-delete", true);  
+			xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");  
+			xhr.send("shortcodes=" + encodeURIComponent(shortCodes.join(",")));  
+			xhr.onload = function() {  
+				hideLoading();  
+				if (xhr.status === 200) {  
+					// 移除选中的行  
+                    rowsToRemove.forEach(function(row) {  
+                        row.style.display = 'none';  
+                        setTimeout(function() {  
+                            row.remove();  
+                        }, 100);  
+                    });  
+                    updateTablePagination();  
+                    alert(xhr.responseText);  
+				} else {  
+					alert("批量删除失败");  
+				}  
+			};  
+			xhr.onerror = function() {  
+				hideLoading();  
+				alert("网络错误，操作失败");  
+			};  
+		}  
+	);  
+}  
+  
+// 页面加载时隐藏复选框  
+window.onload = function() {  
+	var savedPageSize = localStorage.getItem("pageSize");  
+	if (savedPageSize) {  
+		pageSize = parseInt(savedPageSize);  
+	}  
+	updatePageSizeSelect();  
+	updateTablePagination();  
+	// 初始化长链接展开功能  
+    initLongUrlToggle();  
+	  
+	// 隐藏所有复选框  
+	var checkboxes = document.querySelectorAll(".row-checkbox");  
+	var selectAllCheckbox = document.getElementById("selectAllCheckbox");  
+	checkboxes.forEach(function(checkbox) {  
+		checkbox.style.display = "none";  
+	});  
+	if (selectAllCheckbox) {  
+		selectAllCheckbox.style.display = "none";  
+	}  
+};
+// 滚动监听和回到顶部功能  
+window.addEventListener('scroll', function() {  
+    var table = document.getElementById('dataTable');  
+    var backToTopBtn = document.getElementById('backToTop');  
+      
+    if (table) {  
+        var tableRect = table.getBoundingClientRect();  
+        // 当表头顶部超出视窗时显示按钮  
+        if (tableRect.top < 0) {  
+            backToTopBtn.classList.add('show');  
+        } else {  
+            backToTopBtn.classList.remove('show');  
+        }  
+    }  
+});  
+  
+function scrollToTop() {  
+    window.scrollTo({  
+        top: 0,  
+        behavior: 'smooth'  
+    });  
+}
 		</script>
 	</head>
 	<body>
 		<h2>管理页面</h2>
 		<div class="container">
-			<input type="text" id="searchInput" onkeyup="searchTable()" placeholder="搜索关键词...">
+			<div class="search-button-group">  
+    			<!-- 按钮组 -->    
+    			<div class="button-group">    
+        			<button class="vue-btn vue-btn-primary" onclick="toggleMultiSelect()">    
+            			<span id="multiSelectText">多选</span>    
+        			</button>    
+        			<button class="vue-btn vue-btn-danger" onclick="deleteExpired()">删除过期</button>    
+        			<div id="hiddenButtons" class="hidden-buttons">    
+						<!-- <button class="vue-btn vue-btn-success" onclick="selectAll()">全选</button> --> 
+						<!-- <button class="vue-btn vue-btn-warning" onclick="deselectAll()">取消全选</button> --> 
+            			<button id="deleteSelectedBtn" class="vue-btn vue-btn-danger" onclick="deleteSelected()" disabled>删除选中</button>    
+        			</div>    
+    			</div>  
+				<input type="text" id="searchInput" onkeyup="searchTable()" placeholder="搜索关键词..." class="search-input">  
+			</div>
 			<table id="dataTable">
 				<thead>
 					<tr>
+						<th style="width: 50px;">  
+							<div class="checkbox-wrapper">    
+        						<input type="checkbox" id="selectAllCheckbox" class="custom-checkbox" onchange="toggleSelectAll()">  
+    						</div>
+						</th>
 						<th>长链接内容</th>
 						<th>后缀</th>
 						<th>密码</th>
 						<th>客户端IP</th>
-						<th>到期时间</th>
+						<th onclick="sortByExpiration()" style="cursor: pointer;">到期时间 <span id="expirationSortArrow">↕</span></th>
 						<th>阅后即焚</th>
 						<th>类型</th>
 						<th onclick="sortByLastUpdate()" style="cursor: pointer;">最后更新时间 <span id="sortArrow">↕</span></th>
@@ -2405,6 +3073,11 @@ function hideLoading() {
 				<tbody>
 					{{range .Data}} 
 					<tr>
+						<td>  
+							<div class="checkbox-wrapper">  
+								<input type="checkbox" class="custom-checkbox row-checkbox" value="{{.ShortCode}}" onchange="updateDeleteButton()">  
+							</div>  
+						</td>
 						<td data-field="LongUrl" title="点击可展开完整内容">{{.LongUrl}}</td>
 						<td>  
     					{{if .ShortCode}}  
@@ -2446,6 +3119,9 @@ function hideLoading() {
 				<option value="20">每页 20 项</option>
 				<option value="50">每页 50 项</option>
 				<option value="100">每页 100 项</option>
+				<option value="200">每页 200 项</option>
+				<option value="500">每页 500 项</option>
+				<option value="1000">每页 1000 项</option>
 			</select>
 			<!-- 悬浮按钮 -->
     <button class="floating-btn" onclick="showLogPopup()">查看日志</button>
@@ -2458,7 +3134,22 @@ function hideLoading() {
         <div class="log-footer">
             <button onclick="clearLog()">清空日志</button>
         </div>
-    </div>   
+    </div> 
+	<!-- Vue样式确认弹窗 -->  
+<div id="confirmModal" class="vue-modal">  
+	<div class="vue-modal-content">  
+		<div class="vue-modal-header" id="modalTitle">确认操作</div>  
+		<div class="vue-modal-body" id="modalMessage">确定要执行此操作吗？</div>  
+		<div class="vue-modal-footer">  
+			<button class="vue-btn vue-btn-primary" onclick="closeModal()">取消</button>  
+			<button class="vue-btn vue-btn-danger" id="modalConfirmBtn">确认</button>  
+		</div>  
+	</div>  
+</div>
+<!-- 悬浮回到顶部按钮 -->  
+<button id="backToTop" class="back-to-top-btn" onclick="scrollToTop()">  
+    顶部  
+</button>
 	<!-- 加载弹窗 -->  
 <div id="loadingPopup" class="loading-popup">  
     <div class="loading-content">  
