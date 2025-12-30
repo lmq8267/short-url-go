@@ -134,6 +134,53 @@
                 transform: translate(-50%, -50%) translateY(0);
             }
         }
+        /* 气泡悬浮提示样式 */
+        .tooltip-wrapper {
+          position: relative;
+        }
+
+    .custom-tooltip {
+      position: absolute;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px 8px 8px 8px !important;
+      font-size: 14px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+      top: -45px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+    }
+
+    .custom-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: #764ba2;
+    }
+
+    .custom-tooltip.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 为select添加hover效果 */
+    .form-select:hover {
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .form-select {
+      border-radius: 5px !important;
+    }
     </style>
     <script>
     (function () {
@@ -199,15 +246,16 @@
             <div class="col-md-10">
                 <div id="input-container">
                     <div class="input-group mb-3">
-                        <label class="input-group-text" for="type">请选择功能</label>
-                        <select class="form-select" id="type" name="type">
-                            <option value="link">缩短链接</option>
-                            <option value="html">HTML网页</option>
-                            <option value="text">txt文本</option>
-                            <option value="page">网页文本</option>
-                            <option value="iframe">iframe网页</option>
-                        </select>
-                    </div>
+              <label class="input-group-text" for="type">请选择功能</label>
+              <select class="form-select" id="type" name="type">
+                <option value="link" data-tooltip="将长网址转换为短链接，支持HTTP重定向和WebSocket转发">缩短链接</option>
+                <option value="html" data-tooltip="直接展示HTML内容，适用于网页片段和静态页面">HTML网页</option>
+                <option value="text" data-tooltip="纯文本内容响应展示，没有任何html参与，适用于代码片段和文本分享">txt文本</option>
+                <option value="page" data-tooltip="使用html模板展示文本内容，支持更好的页面排版以及文字调色，适用于日志分享">网页文本</option>
+                <option value="iframe" data-tooltip="通过iframe嵌入外部网页，支持完整页面展示">iframe网页</option>
+              </select>
+              <div class="custom-tooltip" id="typeTooltip"></div>
+            </div>
 
                     <div class="input-group mb-3">
                         <span class="input-group-text">请输入后缀</span>
@@ -388,6 +436,51 @@
         var shortUrl = document.getElementById("shortUrl").innerText;
         window.open(shortUrl, '_blank');
     }
+    // 气泡提示功能  
+    const typeSelect = document.getElementById('type');
+    const tooltip = document.getElementById('typeTooltip');
+
+    typeSelect.addEventListener('mouseenter', function (e) {
+      const selectedOption = this.options[this.selectedIndex];
+      const tooltipText = selectedOption.getAttribute('data-tooltip');
+
+      if (tooltipText) {
+        tooltip.textContent = tooltipText;
+        tooltip.classList.add('show');
+      }
+    });
+
+    typeSelect.addEventListener('mouseleave', function () {
+      tooltip.classList.remove('show');
+    });
+
+    typeSelect.addEventListener('change', function () {
+      // 选择改变时立即显示新选项的提示  
+      const selectedOption = this.options[this.selectedIndex];
+      const tooltipText = selectedOption.getAttribute('data-tooltip');
+
+      if (tooltipText) {
+        tooltip.textContent = tooltipText;
+        tooltip.classList.add('show');
+
+        // 2秒后自动隐藏  
+        setTimeout(() => {
+          tooltip.classList.remove('show');
+        }, 2000);
+      }
+    });
+
+    // 为下拉框的每个选项添加hover效果  
+    typeSelect.addEventListener('mousemove', function (e) {
+      const option = e.target;
+      if (option.tagName === 'OPTION') {
+        const tooltipText = option.getAttribute('data-tooltip');
+        if (tooltipText) {
+          tooltip.textContent = tooltipText;
+          tooltip.classList.add('show');
+        }
+      }
+    });
 </script>
 </body>
 </html>
