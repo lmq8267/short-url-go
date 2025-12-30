@@ -71,6 +71,21 @@ jobs:
           - GOARCH: amd64
             GOOS: freebsd
             NAME: freebsd-x86
+          - GOARCH: amd64
+            GOOS: windows
+            NAME: windows-x86.exe
+          - GOARCH: 386
+            GOOS: windows
+            NAME: windows-386.exe
+          - GOARCH: arm64
+            GOOS: windows
+            NAME: windows-arm64.exe
+          - GOARCH: amd64
+            GOOS: darwin
+            NAME: darwin-x86
+          - GOARCH: arm64
+            GOOS: darwin
+            NAME: darwin-arm64
     runs-on: ubuntu-latest
     env:
       GOarch: ${{ matrix.GOARCH }}
@@ -98,10 +113,17 @@ jobs:
             export GOARCH=$GOarch
             export GOARM=$GOarm
             export GOMIPS=$GOmips
+            if [ "${GOos}" == "windows" ]; then
+              curl -L https://github.com/thongtech/go-legacy-win7/releases/download/v1.25.5-1/go-legacy-win7-1.25.5-1.linux_amd64.tar.gz -o go-legacy-win7.tar.gz
+              sudo tar --no-same-permissions -xzvf go-legacy-win7.tar.gz -C /opt/
+              sudo chmod -R 755 /opt/go-legacy-win7
+              export GOROOT=/opt/go-legacy-win7
+              export PATH=$GOROOT/bin:$PATH
+            fi
             go build -ldflags="-s -w"
-            echo "shortener ：`ls -alh shortener | awk '{print $5}'`"
-            file shortener
-            mv -f shortener /opt/shortener-${NAME}
+            echo "shortener ：`ls -alh shortener | awk '{print $5}'`" || echo "shortener.exe ：`ls -alh shortener.exe | awk '{print $5}'`"
+            file shortener || file shortener.exe
+            mv -f shortener /opt/shortener-${NAME} || mv -f shortener.exe /opt/shortener-${NAME}
             echo "build_time=$(date '+%Y年%m月%d日%H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
             echo "build_tag=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
       - name: 安装 UPX
