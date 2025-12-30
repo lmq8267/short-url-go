@@ -3665,7 +3665,7 @@ func main() {
 
 	var (
 		port        int
-		    bool
+		showHelp    bool
 		showVersion bool
 		daemon      bool
 		email       string
