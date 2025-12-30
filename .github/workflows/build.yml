@@ -136,7 +136,7 @@ jobs:
         if: github.event.inputs.upx == 'true' 
         run: |
           if [ "${GOos}" != "freebsd" ] && [ "${GOarch}" != "mips64" ] && [ "${GOarch}" != "mips64le" ] && [ "${GOarch}" != "ppc64le" ] && [ "${GOarch}" != "s390x" ]; then
-             upx --lzma --best /opt/shortener-${NAME}
+             upx --lzma --best /opt/shortener-${NAME} || true
           fi
           
       - name: 上传
