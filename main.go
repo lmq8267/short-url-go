@@ -2625,7 +2625,7 @@ td:first-child {
 					}
 				}
 			}
-			var shortcode = row.querySelector("td:nth-child(2)").innerText;
+			var shortcode = row.querySelector("td:nth-child(3)").innerText;
 			data.shortcode = shortcode;
 
 			// 验证日期格式
@@ -2775,8 +2775,8 @@ function sortByExpiration() {
     var rows = Array.from(tbody.getElementsByTagName("tr"));  
       
     rows.sort(function(a, b) {  
-        var dateA = a.getElementsByTagName("td")[5].innerText; // 到期时间在第6列 索引5  
-        var dateB = b.getElementsByTagName("td")[5].innerText;  
+        var dateA = a.getElementsByTagName("td")[6].innerText; // 到期时间在第7列 索引6
+        var dateB = b.getElementsByTagName("td")[6].innerText;  
           
         // 空值处理：将空值放在最后  
         if (!dateA || dateA.trim() === '') return 1;  
@@ -2984,7 +2984,7 @@ function deleteExpired() {
 					// 获取所有过期的行并移除  
                     var rows = document.querySelectorAll("#dataTable tbody tr");  
                     rows.forEach(function(row) {  
-                        var expirationCell = row.getElementsByTagName("td")[5];  
+                        var expirationCell = row.getElementsByTagName("td")[6];  
                         if (expirationCell) {  
                             var expirationText = expirationCell.innerText;  
                             if (expirationText && expirationText !== "") {  
